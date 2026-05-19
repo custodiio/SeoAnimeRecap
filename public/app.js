@@ -261,6 +261,7 @@ function setupThumb() {
   document.getElementById('btnDownloadSpec').addEventListener('click', downloadSpec);
   document.getElementById('btnRenderThumbnail').addEventListener('click', gerarThumbnailFinalIA);
   document.getElementById('btnNovaIteracao').addEventListener('click', () => goToStep(3));
+  document.getElementById('btnVoltarTemplates').addEventListener('click', () => goToStep(2));
   document.getElementById('btnFinalizarLimpar').addEventListener('click', finalizarELimpar);
 }
 

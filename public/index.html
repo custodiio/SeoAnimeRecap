@@ -258,9 +258,14 @@
     <!-- ── ETAPA 3: Curadoria de Frames ──────────────────────────────── -->
     <div class="thumb-step hidden" id="thumbStep3">
       <div class="section-card">
-        <div class="card-header">
-          <h2>🎬 Etapa 3 — Extração e Curadoria de Frames</h2>
-          <p>Faça upload do vídeo. O sistema extrairá automaticamente os frames de cada janela de tempo recomendada.</p>
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h2>🎬 Etapa 3 — Extração e Curadoria de Frames</h2>
+            <p>Faça upload do vídeo. O sistema extrairá automaticamente os frames de cada janela de tempo recomendada.</p>
+          </div>
+          <button class="btn-outline secondary" id="btnVoltarTemplates" style="padding: 8px 12px; font-size: 14px;">
+            ⬅️ Voltar aos Templates
+          </button>
         </div>
         <div class="card-body">
 
@@ -364,7 +369,7 @@
 
           <div style="display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap;">
             <button class="btn-outline secondary" id="btnNovaIteracao">
-              🔄 Nova Iteração (ajustar frames)
+              ⬅️ Voltar e Ajustar Frames
             </button>
             <button class="btn-primary" id="btnFinalizarLimpar" style="background-color: var(--red);">
               🗑️ Finalizar Projeto e Limpar Dados
