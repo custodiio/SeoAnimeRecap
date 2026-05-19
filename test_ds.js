@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const openai = new OpenAI({ apiKey: 'sk-0c01df7295664219bf3e8fc5ef2581bb', baseURL: 'https://api.deepseek.com' });
+const openai = new OpenAI({ apiKey: process.env.DEEPSEEK_API_KEY, baseURL: 'https://api.deepseek.com' });
 async function run() {
   try {
     const res = await openai.chat.completions.create({

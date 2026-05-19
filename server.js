@@ -628,6 +628,52 @@ Instruções:
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROTA 7 — Limpar Arquivos da Sessão (Cleanup)
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post("/api/cleanup-session", async (req, res) => {
+  try {
+    const { sessao_id, video_path, spec_file, images } = req.body;
+    let removidos = 0;
+
+    // Remover vídeo
+    if (video_path && fs.existsSync(video_path)) {
+      fs.unlinkSync(video_path);
+      removidos++;
+    }
+
+    // Remover pasta de extração de frames
+    if (sessao_id) {
+      const extractDir = path.join("public", "extracted", sessao_id);
+      if (fs.existsSync(extractDir)) {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+        removidos++;
+      }
+    }
+
+    // Remover spec file
+    if (spec_file && fs.existsSync(spec_file)) {
+      fs.unlinkSync(spec_file);
+      removidos++;
+    }
+
+    // Remover imagens geradas
+    if (images && images.length > 0) {
+      images.forEach((img) => {
+        if (img.path && fs.existsSync(img.path)) {
+          fs.unlinkSync(img.path);
+          removidos++;
+        }
+      });
+    }
+
+    res.json({ success: true, removidos, message: "Sessão limpa com sucesso!" });
+  } catch (err) {
+    console.error("❌ cleanup-session:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Servir thumbnails geradas
 app.use("/output-img", express.static("output"));
 

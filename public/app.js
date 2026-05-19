@@ -8,7 +8,9 @@ const State = {
   framesExtraidos: [],       // resultados por papel
   framesSelecionados: {},    // { papel_id: { url, path, timestamp } }
   visionResultados: {},      // { papel_id: analise }
-  specFinal: null
+  specFinal: null,
+  guiaGerado: null,          // Armazena o guia
+  thumbnailGerada: null      // Armazena info da img
 };
 
 const API = 'http://localhost:3333/api';
@@ -123,6 +125,18 @@ function hideLoading() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function setupGuide() {
   document.getElementById('btnGerarGuia').addEventListener('click', gerarGuia);
+  
+  const btnDownloadGuide = document.getElementById('btnDownloadGuideJson');
+  if (btnDownloadGuide) {
+    btnDownloadGuide.addEventListener('click', () => {
+      if (!State.guiaGerado) return;
+      const blob = new Blob([JSON.stringify(State.guiaGerado, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `guia_postagem_${Date.now()}.json`;
+      a.click();
+    });
+  }
 
   document.querySelectorAll('.btn-copy').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -147,6 +161,7 @@ async function gerarGuia() {
     });
     const data = await r.json();
     if (!data.success) throw new Error(data.error);
+    State.guiaGerado = data.guia;
     renderGuia(data.guia);
     toast('Guia gerado com sucesso!', 'success');
   } catch (err) {
@@ -246,6 +261,51 @@ function setupThumb() {
   document.getElementById('btnDownloadSpec').addEventListener('click', downloadSpec);
   document.getElementById('btnRenderThumbnail').addEventListener('click', gerarThumbnailFinalIA);
   document.getElementById('btnNovaIteracao').addEventListener('click', () => goToStep(3));
+  document.getElementById('btnFinalizarLimpar').addEventListener('click', finalizarELimpar);
+}
+
+async function finalizarELimpar() {
+  if (!confirm("Tem certeza que deseja apagar os arquivos temporários e encerrar este projeto?")) return;
+  
+  showLoading('Limpando Sessão...', 'Apagando vídeos e imagens do servidor');
+  try {
+    // 1. Chamar o backend para apagar tudo
+    await fetch(`${API}/cleanup-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessao_id: State.sessaoExtracao,
+        video_path: State._videoFile?.path, // Se estiver rodando local no app desktop (file_path local)
+        spec_file: State.specFinal?.arquivo_local, // precisamos saber se guardamos.
+        images: State.thumbnailGerada ? [State.thumbnailGerada] : []
+      })
+    });
+    
+    // 2. Limpar a Interface
+    document.getElementById('inputVideo').value = '';
+    document.getElementById('videoInfo').classList.add('hidden');
+    document.getElementById('videoUploadZone').classList.remove('hidden');
+    document.getElementById('framesExtraidosContainer').classList.add('hidden');
+    document.getElementById('visionAnaliseContainer').classList.add('hidden');
+    document.getElementById('renderResultContainer').classList.add('hidden');
+    
+    // Resetar State (exceto roteiro e id)
+    State.templateSelecionado = null;
+    State.sessaoExtracao = null;
+    State.framesExtraidos = [];
+    State.framesSelecionados = {};
+    State.visionResultados = {};
+    State.specFinal = null;
+    State.thumbnailGerada = null;
+    State._videoFile = null;
+    
+    goToStep(1);
+    toast('Sessão finalizada e arquivos limpos!', 'success');
+  } catch(err) {
+    toast(`Erro ao limpar: ${err.message}`, 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 function setVideoFile(file) {
@@ -591,6 +651,7 @@ async function gerarThumbnailFinalIA() {
       const btnDownload = document.getElementById('btnDownloadThumbnail');
       
       const imgInfo = data.images[0];
+      State.thumbnailGerada = imgInfo;
       resultImage.src = imgInfo.url;
       resultContainer.classList.remove('hidden');
       

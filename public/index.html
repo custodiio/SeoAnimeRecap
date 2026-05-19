@@ -92,6 +92,12 @@
     <!-- Resultado Guia -->
     <div id="guideResult" class="hidden">
 
+      <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
+        <button class="btn-outline" id="btnDownloadGuideJson">
+          ⬇️ Exportar Guia em JSON
+        </button>
+      </div>
+
       <!-- Títulos -->
       <div class="result-card">
         <div class="result-card-header">
@@ -356,9 +362,14 @@
             </button>
           </div>
 
-          <button class="btn-outline secondary" id="btnNovaIteracao" style="margin-top:24px">
-            🔄 Nova Iteração (ajustar frames)
-          </button>
+          <div style="display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap;">
+            <button class="btn-outline secondary" id="btnNovaIteracao">
+              🔄 Nova Iteração (ajustar frames)
+            </button>
+            <button class="btn-primary" id="btnFinalizarLimpar" style="background-color: var(--red);">
+              🗑️ Finalizar Projeto e Limpar Dados
+            </button>
+          </div>
         </div>
       </div>
     </div>
