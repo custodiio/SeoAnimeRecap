@@ -13,7 +13,7 @@ const State = {
   thumbnailGerada: null      // Armazena info da img
 };
 
-const API = 'http://localhost:3333/api';
+const API = '/api';
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
