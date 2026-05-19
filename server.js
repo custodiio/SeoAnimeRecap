@@ -682,6 +682,6 @@ app.get("/api/health", (req, res) =>
   res.json({ ok: true, ts: new Date().toISOString() }),
 );
 
-app.listen(PORT, () =>
-  console.log(`\n🚀 SEO AnimeRecap → http://localhost:${PORT}\n`),
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(`\n🚀 SEO AnimeRecap → http://0.0.0.0:${PORT}\n`),
 );
