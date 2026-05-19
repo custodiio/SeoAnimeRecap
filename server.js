@@ -16,15 +16,15 @@ const PORT = process.env.PORT || 3333;
 // ─── Clientes de IA ───────────────────────────────────────────────────────────
 // DeepSeek V3 — melhor custo-benefício para geração de texto
 const deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
+  apiKey: process.env.DEEPSEEK_API_KEY || "missing",
   baseURL: "https://api.deepseek.com",
 });
 
 // OpenAI GPT-4.1 — vision de frames
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "missing" });
 
 // Google Gemini 2.0 Flash — vision de frames (barato e capaz)
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "missing");
 const geminiFlash = genAI.getGenerativeModel({
   model: "gemini-3.1-pro-preview",
 });
