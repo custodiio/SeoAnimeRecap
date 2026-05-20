@@ -431,6 +431,18 @@ async function extrairFrames() {
     fd.append('frames_config', JSON.stringify(frames));
 
     const r = await fetch(`${API}/extract-frames`, { method: 'POST', body: fd });
+    
+    if (!r.ok) {
+      if (r.status === 413) throw new Error("Vídeo muito grande! O limite de requisição padrão do Cloud Run é 32MB. Mude para a Gen 2 do Cloud Run.");
+      const errText = await r.text();
+      try {
+        const errJson = JSON.parse(errText);
+        throw new Error(errJson.error || `Erro HTTP ${r.status}`);
+      } catch {
+        throw new Error(`Erro Servidor (${r.status}): O Cloud Run bloqueou a requisição.`);
+      }
+    }
+    
     const data = await r.json();
     if (!data.success) throw new Error(data.error);
 
