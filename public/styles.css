@@ -393,3 +393,48 @@ html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--b
   .frames-grid { grid-template-columns: repeat(2, 1fr); }
   .vision-card { grid-template-columns: 1fr; }
 }
+
+/* ── Auth Section ── */
+.auth-section {
+  display: flex; align-items: center; justify-content: center;
+  height: 100vh; background: var(--bg);
+}
+.auth-box {
+  background: var(--bg2); padding: 40px; border-radius: var(--radius);
+  border: 1px solid var(--border); width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; gap: 20px; text-align: center;
+}
+.auth-title { font-size: 24px; font-weight: 700; color: var(--text); }
+.auth-subtitle { font-size: 14px; color: var(--text2); }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-input {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  padding: 12px 16px; border-radius: 8px; font-size: 14px; width: 100%;
+}
+.auth-input:focus { outline: none; border-color: var(--accent); }
+.auth-toggle { font-size: 13px; color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+/* ── Settings Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 30px; width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-size: 18px; font-weight: 700; }
+.modal-close { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 20px; }
+.modal-close:hover { color: var(--red); }
+.settings-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.settings-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.settings-select-row { display: flex; gap: 10px; }
+.settings-select {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 10px; border-radius: 8px; font-size: 13px;
+}
+.settings-select:focus { outline: none; border-color: var(--accent); }
+.settings-hint { font-size: 12px; color: var(--text2); margin-top: -6px; }
+

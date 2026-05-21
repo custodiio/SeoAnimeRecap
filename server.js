@@ -15,6 +15,11 @@ ffmpeg.setFfprobePath(ffprobePath);
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec } = require("child_process");
+const jwt = require("jsonwebtoken");
+const { registerUser, verifyUser } = require("./database");
+const driveManager = require("./drive_manager");
+
+const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_anime_recap";
 
 const app = express();
 const PORT = process.env.PORT || 3333;
@@ -135,10 +140,153 @@ function extrairFrames(
   });
 }
 
+// ─── Autenticação ─────────────────────────────────────────────────────────────
+app.post("/api/register", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+    
+    const approvedUser = process.env.APPROVED_USERS;
+    if (approvedUser && username !== approvedUser) {
+      return res.status(403).json({ error: "Você não tem permissão para se cadastrar neste sistema." });
+    }
+
+    const user = await registerUser(username, password);
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await verifyUser(username, password);
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: "7d" });
+    res.json({ success: true, token, username: user.username });
+  } catch (err) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Acesso negado. Token não fornecido." });
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Token inválido ou expirado." });
+    req.user = user;
+    next();
+  });
+}
+
+// ─── Dispatcher de Modelos ──────────────────────────────────────────────────
+async function callAI(prompt, config, imageBase64 = null) {
+  const provider = config?.provider || "deepseek";
+  // O fallback abaixo é para os nomes de modelo de cada provedor
+  let defaultModelStr = "deepseek-chat";
+  if (provider === "google") defaultModelStr = "gemini-3.1-pro-preview";
+  if (provider === "openai") defaultModelStr = "gpt-4o";
+  const modelStr = config?.model || defaultModelStr;
+  
+  if (provider === "deepseek") {
+    const completion = await deepseek.chat.completions.create({
+      model: modelStr,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 8192,
+    });
+    return completion.choices[0].message?.content || completion.choices[0].message?.reasoning_content || "";
+  }
+  
+  if (provider === "openai") {
+    const messages = [{ role: "user", content: prompt }];
+    if (imageBase64) {
+      messages[0] = {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+        ]
+      };
+    }
+    const completion = await openai.chat.completions.create({
+      model: modelStr,
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
+    return completion.choices[0].message.content || "";
+  }
+  
+  if (provider === "google") {
+    const model = genAI.getGenerativeModel({ model: modelStr });
+    let result;
+    if (imageBase64) {
+      result = await model.generateContent([
+        { inlineData: { data: imageBase64, mimeType: "image/jpeg" } },
+        prompt
+      ]);
+    } else {
+      result = await model.generateContent(prompt);
+    }
+    return result.response.text();
+  }
+  
+  throw new Error(`Provedor desconhecido: ${provider}`);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROTA 1 — Guia de Postagem  (DeepSeek V3)
+// ROTA 0 — Sincronizar Arquivos do Google Drive
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/generate-guide", async (req, res) => {
+app.post("/api/sync-drive", authMiddleware, async (req, res) => {
+  try {
+    console.log("☁️ Iniciando sincronização do Google Drive...");
+    
+    // Caminhos padrão no Drive
+    const pathIdAnime = "KAGGLE/AUDIO_DUB/identificacao_anime.json";
+    const pathTraducao = "KAGGLE/AUDIO_DUB/traducao_simplificada.json";
+    const pathVideo = "KAGGLE/PIPELINE/ATIVO/video_original.mp4";
+
+    // Caminhos locais
+    const localIdAnime = path.join(__dirname, "uploads", "identificacao_anime.json");
+    const localTraducao = path.join(__dirname, "uploads", "traducao_simplificada.json");
+    
+    // Para o vídeo, usamos um UUID no nome para evitar colisões
+    const videoFileName = `${uuidv4()}_video_original.mp4`;
+    const localVideo = path.join(__dirname, "uploads", videoFileName);
+
+    // Downloads simultâneos (ou sequenciais se preferir segurança)
+    await driveManager.downloadFile(pathIdAnime, localIdAnime);
+    await driveManager.downloadFile(pathTraducao, localTraducao);
+    await driveManager.downloadFile(pathVideo, localVideo);
+
+    // Ler os arquivos JSON salvos
+    const identificacaoStr = fs.readFileSync(localIdAnime, "utf-8");
+    const traducaoStr = fs.readFileSync(localTraducao, "utf-8");
+
+    let identificacao, traducao;
+    try { identificacao = JSON.parse(identificacaoStr); } catch(e) { throw new Error("identificacao_anime.json inválido no Drive"); }
+    try { traducao = JSON.parse(traducaoStr); } catch(e) { throw new Error("traducao_simplificada.json inválido no Drive"); }
+
+    res.json({
+      success: true,
+      identificacao,
+      traducao,
+      video_path: localVideo
+    });
+
+  } catch (err) {
+    console.error("❌ sync-drive:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROTA 1 — Guia de Postagem
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post("/api/generate-guide", authMiddleware, async (req, res) => {
   try {
     const { roteiro, identificacao } = req.body;
     if (!roteiro || !identificacao)
@@ -178,15 +326,7 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações:
   "score_viral": 87
 }`;
 
-    const completion = await deepseek.chat.completions.create({
-      model: "deepseek-v4-pro",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.8,
-      max_tokens: 8192,
-    });
-
-    const msg = completion.choices[0].message;
-    const content = msg?.content || msg?.reasoning_content || "";
+    const content = await callAI(prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -199,9 +339,9 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações:
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROTA 2 — Análise do Roteiro + Templates  (DeepSeek V3)
+// ROTA 2 — Análise do Roteiro + Templates
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/analyze-script", async (req, res) => {
+app.post("/api/analyze-script", authMiddleware, async (req, res) => {
   try {
     const { roteiro, identificacao } = req.body;
 
@@ -280,15 +420,7 @@ Retorne SOMENTE JSON válido:
   "resumo_para_thumbnail": "2-3 linhas do arco emocional do episódio"
 }`;
 
-    const completion = await deepseek.chat.completions.create({
-      model: "deepseek-v4-pro",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 8192,
-    });
-
-    const msg = completion.choices[0].message;
-    const content = msg?.content || msg?.reasoning_content || "";
+    const content = await callAI(prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -303,9 +435,12 @@ Retorne SOMENTE JSON válido:
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROTA 3 — Extração de Frames do Vídeo (ffmpeg)
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/extract-frames", upload.single("video"), async (req, res) => {
+app.post("/api/extract-frames", authMiddleware, upload.single("video"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "Vídeo obrigatório." });
+    const videoPath = req.file ? req.file.path : req.body.video_path;
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      return res.status(400).json({ error: "Vídeo obrigatório. Envie o arquivo ou o video_path do Drive." });
+    }
 
     const { frames_config } = req.body;
     if (!frames_config)
@@ -313,7 +448,6 @@ app.post("/api/extract-frames", upload.single("video"), async (req, res) => {
 
     const config = JSON.parse(frames_config);
     const sessaoId = uuidv4();
-    const videoPath = req.file.path;
 
     // Descobrir a duração real do vídeo para evitar buscar frames que não existem
     let duracaoTotal = 999999;
@@ -388,9 +522,9 @@ app.post("/api/extract-frames", upload.single("video"), async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROTA 4 — Análise Vision de Frame  (Gemini 2.0 Flash — barato e capaz)
+// ROTA 4 — Análise Vision de Frame
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/analyze-frame", async (req, res) => {
+app.post("/api/analyze-frame", authMiddleware, async (req, res) => {
   try {
     const { frame_path, papel_id, papel_descricao, template, emocao_buscada } =
       req.body;
@@ -426,12 +560,9 @@ Retorne SOMENTE JSON válido:
   "recomendacao": "Excelente frame — expressão de triunfo bem definida"
 }`;
 
-    const result = await geminiFlash.generateContent([
-      { inlineData: { data: imageData, mimeType: "image/jpeg" } },
-      prompt,
-    ]);
+    const content = await callAI(prompt, req.body.modelConfig, imageData);
 
-    const analise = JSON.parse(limparJson(result.response.text()));
+    const analise = JSON.parse(limparJson(content));
     res.json({ success: true, frame_path, analise });
   } catch (err) {
     console.error("❌ analyze-frame:", err.message);
@@ -440,24 +571,23 @@ Retorne SOMENTE JSON válido:
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROTA 5 — Gerar Spec JSON da Thumbnail  (DeepSeek V3)
+// ROTA 5 — Gerar Spec JSON da Thumbnail
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/generate-thumbnail-spec", async (req, res) => {
+app.post("/api/generate-thumbnail-spec", authMiddleware, async (req, res) => {
   try {
-    const { template, frames_selecionados, analise_roteiro, identificacao } =
+    const { template, template_obj, frames_selecionados, analise_roteiro, identificacao } =
       req.body;
 
-    const textoPrincipal =
-      analise_roteiro?.templates_recomendados?.[0]?.texto_capa ||
-      "TEXTO PRINCIPAL";
-    const subtexto =
-      analise_roteiro?.templates_recomendados?.[0]?.subtexto || "";
+    const textoPrincipal = template_obj?.texto_capa || "TEXTO PRINCIPAL";
+    const subtexto = template_obj?.subtexto || "";
+    const paleta = template_obj?.paleta || "dark_purple";
 
     const prompt = `Você é diretor de arte de thumbnails virais de YouTube para anime.
 Gere o SPEC JSON de composição para renderização com Python/Pillow.
 
 TEMPLATE: ${template} | ANIME: ${identificacao?.title || "Anime"}
 TEXTO CAPA: "${textoPrincipal}" | SUBTEXTO: "${subtexto}"
+PALETA DE CORES DEFINIDA: "${paleta}"
 FRAMES ANALISADOS: ${JSON.stringify(frames_selecionados, null, 2)}
 CONTEXTO: ${analise_roteiro?.resumo_para_thumbnail || ""}
 
@@ -469,6 +599,7 @@ Regras por template:
 - VIRADA_NARRATIVA: frame grande com texto dramático sobreposto e seta ou relâmpago
 
 Instruções de Inteligência e Adaptação dos Frames:
+- A Paleta de Cores deve ser rigorosamente respeitada. Adapte as cores da camada "bg" e os efeitos visuais (ex: cores de borda, textos, gradientes) para utilizar os códigos Hexadecimais corretos que correspondam visualmente à paleta solicitada ("${paleta}").
 - Contorne falhas nos frames: se o frame selecionado não tiver o personagem exato, adapte o foco para o elemento principal da cena.
 - Remoção de distrações: instrua a IA a remover personagens secundários ou expressões calmas que distoem da dramaticidade.
 - Recortes em vez de "quadradões": prefira indicar recortes focados apenas na silhueta/corpo do personagem principal, removendo fundos inúteis.
@@ -478,9 +609,10 @@ Retorne SOMENTE JSON válido com esta estrutura:
 {
   "spec_version": "2.0",
   "template": "${template}",
+  "paleta": "${paleta}",
   "canvas": {"width": 1280, "height": 720},
   "camadas": [
-    {"id": "bg", "tipo": "gradiente", "ordem": 1, "cores": ["#0a0a1a", "#1a0a2e"], "direcao": "diagonal"},
+    {"id": "bg", "tipo": "gradiente", "ordem": 1, "cores": ["#COR_HEX1", "#COR_HEX2"], "direcao": "diagonal"},
     {"id": "hero_frame", "tipo": "imagem_frame", "ordem": 2, "papel_id": "hero",
       "posicao_canvas": {"x": 0, "y": 0, "w": 830, "h": 720},
       "crop": {"x_pct": 5, "y_pct": 0, "w_pct": 85, "h_pct": 100},
@@ -506,15 +638,7 @@ Retorne SOMENTE JSON válido com esta estrutura:
   "metadata": {"anime": "${identificacao?.title || ""}", "template": "${template}", "gerado_em": "${new Date().toISOString()}"}
 }`;
 
-    const completion = await deepseek.chat.completions.create({
-      model: "deepseek-v4-pro",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.5,
-      max_tokens: 8192,
-    });
-
-    const msg = completion.choices[0].message;
-    const content = msg?.content || msg?.reasoning_content || "";
+    const content = await callAI(prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -531,9 +655,9 @@ Retorne SOMENTE JSON válido com esta estrutura:
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ROTA 6 — Gerar Thumbnail Final (IA Gemini / Imagen 3)
+// ROTA 6 — Gerar Thumbnail Final (IA)
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/generate-thumbnail", async (req, res) => {
+app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
   try {
     const { spec, frames_selecionados } = req.body;
     if (!spec) return res.status(400).json({ error: "spec é obrigatório." });
@@ -574,55 +698,71 @@ Instruções:
 - Sem marcas d'água.
 `;
 
-    // Tentativa com gemini-3-pro-image-preview
-    const imgModel = genAI.getGenerativeModel({
-      model: "gemini-3-pro-image-preview",
-    });
-
-    const ensureOutputDir = () => {
-      if (!fs.existsSync("output")) fs.mkdirSync("output", { recursive: true });
-    };
-    ensureOutputDir();
-
-    // Como é modelo imagem-preview, vamos tentar via generateContent
-    // ou se falhar, gerar via openAI fallback
+    const imgConfig = req.body.modelConfig || { provider: "google", model: "gemini-3-pro-image-preview" };
+    
     let saved = [];
-    try {
-      const result = await imgModel.generateContent([
-        promptText,
-        ...imageParts,
-      ]);
-      const responsePart =
-        result?.response?.candidates?.[0]?.content?.parts?.[0];
-
-      if (responsePart && responsePart.inlineData) {
-        const filename = `thumbnail_ai_${Date.now()}.png`;
+    
+    // Tenta Google primeiro (se google estiver no config ou for default) ou OpenAI direto
+    if (imgConfig.provider === "openai") {
+      try {
+        const response = await openai.images.generate({
+          model: imgConfig.model || "dall-e-3",
+          prompt: promptText.substring(0, 950),
+          n: 1,
+          size: "1792x1024",
+          quality: "hd",
+        });
+        const imageUrl = response.data[0].url;
+        const imgRes = await fetch(imageUrl);
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const filename = `thumbnail_dalle_${Date.now()}.png`;
         const filepath = `output/${filename}`;
-        const base64Data = responsePart.inlineData.data;
-        fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+        fs.writeFileSync(filepath, buffer);
         saved.push({ url: `/output-img/${filename}`, path: filepath });
-      } else {
-        throw new Error(
-          "SDK não retornou bytes binários na resposta do generateContent",
-        );
+      } catch (e) {
+        throw new Error("Falha ao gerar imagem com OpenAI: " + e.message);
       }
-    } catch (imgErr) {
-      console.warn("⚠️ Fallback DALL-E 3 ativado:", imgErr.message);
+    } else {
+      // Flow padrão com fallback
+      const imgModelStr = imgConfig.model || "gemini-3-pro-image-preview";
+      const imgModel = genAI.getGenerativeModel({ model: imgModelStr });
 
-      const response = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: promptText.substring(0, 950), // limite do dalle
-        n: 1,
-        size: "1792x1024",
-        quality: "hd",
-      });
-      const imageUrl = response.data[0].url;
-      const imgRes = await fetch(imageUrl);
-      const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const filename = `thumbnail_dalle_${Date.now()}.png`;
-      const filepath = `output/${filename}`;
-      fs.writeFileSync(filepath, buffer);
-      saved.push({ url: `/output-img/${filename}`, path: filepath });
+      const ensureOutputDir = () => {
+        if (!fs.existsSync("output")) fs.mkdirSync("output", { recursive: true });
+      };
+      ensureOutputDir();
+
+      try {
+        const result = await imgModel.generateContent([promptText, ...imageParts]);
+        const responsePart = result?.response?.candidates?.[0]?.content?.parts?.[0];
+
+        if (responsePart && responsePart.inlineData) {
+          const filename = `thumbnail_ai_${Date.now()}.png`;
+          const filepath = `output/${filename}`;
+          const base64Data = responsePart.inlineData.data;
+          fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+          saved.push({ url: `/output-img/${filename}`, path: filepath });
+        } else {
+          throw new Error("SDK não retornou bytes binários na resposta do generateContent");
+        }
+      } catch (imgErr) {
+        console.warn("⚠️ Fallback DALL-E 3 ativado:", imgErr.message);
+
+        const response = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: promptText.substring(0, 950), // limite do dalle
+          n: 1,
+          size: "1792x1024",
+          quality: "hd",
+        });
+        const imageUrl = response.data[0].url;
+        const imgRes = await fetch(imageUrl);
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const filename = `thumbnail_dalle_${Date.now()}.png`;
+        const filepath = `output/${filename}`;
+        fs.writeFileSync(filepath, buffer);
+        saved.push({ url: `/output-img/${filename}`, path: filepath });
+      }
     }
 
     return res.json({
@@ -638,7 +778,7 @@ Instruções:
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROTA 7 — Limpar Arquivos da Sessão (Cleanup)
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/cleanup-session", async (req, res) => {
+app.post("/api/cleanup-session", authMiddleware, async (req, res) => {
   try {
     const { sessao_id, video_path, spec_file, images } = req.body;
     let removidos = 0;

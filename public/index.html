@@ -12,7 +12,7 @@
 <body>
 
 <!-- ══ SIDEBAR ═══════════════════════════════════════════════════════════════ -->
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar hidden" id="sidebar">
   <div class="sidebar-logo">
     <span class="logo-icon">⚡</span>
     <span class="logo-text">AnimeRecap<em>SEO</em></span>
@@ -38,7 +38,7 @@
 </aside>
 
 <!-- ══ MAIN ════════════════════════════════════════════════════════════════════ -->
-<main class="main-content">
+<main class="main-content hidden" id="mainContent">
 
   <!-- ─── HEADER ──────────────────────────────────────────────────────────── -->
   <header class="topbar">
@@ -47,14 +47,20 @@
       <span class="page-sub">Wistoria: Wand and Sword</span>
     </div>
     <div class="topbar-right">
+      <button class="btn-primary" id="btnSyncDrive" style="margin-right:8px; padding: 8px 14px; font-size: 13px;">
+        ☁️ Sincronizar Arquivos do Drive
+      </button>
       <label class="file-btn" for="inputRoteiro">
-        <span>📂 Carregar Roteiro</span>
+        <span>📂 Carregar Roteiro (Fallback)</span>
         <input type="file" id="inputRoteiro" accept=".json" hidden />
       </label>
       <label class="file-btn secondary" for="inputIdentificacao">
-        <span>🎌 Carregar Identificação</span>
+        <span>🎌 Identificação (Fallback)</span>
         <input type="file" id="inputIdentificacao" accept=".json" hidden />
       </label>
+      <button class="btn-outline" id="btnSettings" style="margin-left:8px;">
+        ⚙️ Modelos IA
+      </button>
     </div>
   </header>
 
@@ -273,9 +279,9 @@
           <div class="video-upload-zone" id="videoUploadZone">
             <input type="file" id="inputVideo" accept="video/*" hidden />
             <label for="inputVideo" class="upload-label">
-              <div class="upload-icon">🎬</div>
-              <p class="upload-title">Arraste o vídeo aqui ou clique para selecionar</p>
-              <p class="upload-sub">MP4, MKV, AVI — até 500MB</p>
+              <div class="upload-icon">☁️/🎬</div>
+              <p class="upload-title" id="videoUploadTitle">O vídeo será vinculado automaticamente via Sincronização do Drive!</p>
+              <p class="upload-sub">Se preferir, clique ou arraste para fazer upload manual (Fallback)</p>
             </label>
           </div>
 
@@ -383,6 +389,84 @@
 
 </main>
 
+<!-- ══ AUTH SECTION ══════════════════════════════════════════════════════════ -->
+<section class="auth-section" id="authSection">
+  <div class="auth-box">
+    <div>
+      <h2 class="auth-title" id="authTitle">Acesso Restrito</h2>
+      <p class="auth-subtitle" id="authSubtitle">Faça login para utilizar a ferramenta</p>
+    </div>
+    <form class="auth-form" id="authForm" onsubmit="event.preventDefault();">
+      <input type="text" id="authUsername" class="auth-input" placeholder="Usuário" required />
+      <input type="password" id="authPassword" class="auth-input" placeholder="Senha" required />
+      <button type="submit" class="btn-primary" id="btnAuthSubmit" style="width: 100%; justify-content: center;">Entrar</button>
+    </form>
+    <div class="auth-toggle" id="authToggle">Não tem conta? Cadastre-se</div>
+  </div>
+</section>
+
+<!-- ══ SETTINGS MODAL ════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 class="modal-title">⚙️ Configurar Modelos de IA</h2>
+      <button class="modal-close" id="btnCloseSettings">✕</button>
+    </div>
+    
+    <div class="settings-group">
+      <label class="settings-label">1. Gerar Guia de Postagem e Analisar Roteiro</label>
+      <div class="settings-select-row">
+        <select class="settings-select" id="selProv_text" onchange="updateModels('text')">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="google">Google Gemini</option>
+        </select>
+        <select class="settings-select" id="selMod_text"></select>
+      </div>
+      <div class="settings-hint">Original: DeepSeek (deepseek-v4-pro / deepseek-chat)</div>
+    </div>
+
+    <div class="settings-group">
+      <label class="settings-label">2. Analisar Frame (Vision)</label>
+      <div class="settings-select-row">
+        <select class="settings-select" id="selProv_vision" onchange="updateModels('vision')">
+          <option value="google">Google Gemini</option>
+          <option value="openai">OpenAI</option>
+        </select>
+        <select class="settings-select" id="selMod_vision"></select>
+      </div>
+      <div class="settings-hint">Original: Google (gemini-3.1-pro-preview)</div>
+    </div>
+
+    <div class="settings-group">
+      <label class="settings-label">3. Gerar Spec JSON (Blueprint Thumbnail)</label>
+      <div class="settings-select-row">
+        <select class="settings-select" id="selProv_spec" onchange="updateModels('spec')">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="google">Google Gemini</option>
+        </select>
+        <select class="settings-select" id="selMod_spec"></select>
+      </div>
+      <div class="settings-hint">Original: DeepSeek (deepseek-v4-pro / deepseek-chat)</div>
+    </div>
+
+    <div class="settings-group">
+      <label class="settings-label">4. Gerar Imagem Final da Thumbnail</label>
+      <div class="settings-select-row">
+        <select class="settings-select" id="selProv_image" onchange="updateModels('image')">
+          <option value="google">Google Imagen</option>
+          <option value="openai">OpenAI DALL-E</option>
+        </select>
+        <select class="settings-select" id="selMod_image"></select>
+      </div>
+      <div class="settings-hint">Original: Google (gemini-3-pro-image-preview) com fallback para dall-e-3.</div>
+    </div>
+
+    <button class="btn-primary" id="btnSaveSettings" style="width: 100%; justify-content: center; margin-top: 10px;">Salvar Configurações</button>
+  </div>
+</div>
+
 <!-- ══ LOADING OVERLAY ════════════════════════════════════════════════════════ -->
 <div class="loading-overlay hidden" id="loadingOverlay">
   <div class="loading-box">
@@ -392,6 +476,7 @@
   </div>
 </div>
 
+<script src="config_modelos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

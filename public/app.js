@@ -10,19 +10,56 @@ const State = {
   visionResultados: {},      // { papel_id: analise }
   specFinal: null,
   guiaGerado: null,          // Armazena o guia
-  thumbnailGerada: null      // Armazena info da img
+  thumbnailGerada: null,     // Armazena info da img
+  
+  // Auth e Settings
+  token: localStorage.getItem('auth_token') || null,
+  models: JSON.parse(localStorage.getItem('ai_models')) || {
+    text: { provider: 'deepseek', model: 'deepseek-chat' },
+    vision: { provider: 'google', model: 'gemini-3.1-pro-preview' },
+    spec: { provider: 'deepseek', model: 'deepseek-chat' },
+    image: { provider: 'google', model: 'gemini-3-pro-image-preview' }
+  }
 };
 
 const API = '/api';
 
+// A constante AVAILABLE_MODELS agora está em config_modelos.js
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  setupAuth();
+  setupSettings();
+  if (State.token) {
+    showMainApp();
+  } else {
+    showAuth();
+  }
+  
   setupTabs();
   setupFileInputs();
   setupGuide();
   setupThumb();
   checkHealth();
 });
+
+// ─── Wrapper de Fetch para Auth ───────────────────────────────────────────────
+async function apiFetch(endpoint, options = {}) {
+  if (!options.headers) options.headers = {};
+  if (State.token) {
+    options.headers['Authorization'] = `Bearer ${State.token}`;
+  }
+  
+  const response = await fetch(`${API}${endpoint}`, options);
+  
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem('auth_token');
+    State.token = null;
+    showAuth();
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  return response;
+}
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 async function checkHealth() {
@@ -37,6 +74,104 @@ async function checkHealth() {
     if (txt) txt.textContent = 'Servidor offline';
   }
 }
+
+// ─── Auth e Settings Setup ────────────────────────────────────────────────────
+function showAuth() {
+  document.getElementById('authSection').classList.remove('hidden');
+  document.getElementById('sidebar').classList.add('hidden');
+  document.getElementById('mainContent').classList.add('hidden');
+}
+
+function showMainApp() {
+  document.getElementById('authSection').classList.add('hidden');
+  document.getElementById('sidebar').classList.remove('hidden');
+  document.getElementById('mainContent').classList.remove('hidden');
+}
+
+function setupAuth() {
+  let isLogin = true;
+  const toggleBtn = document.getElementById('authToggle');
+  const form = document.getElementById('authForm');
+  const title = document.getElementById('authTitle');
+  const btn = document.getElementById('btnAuthSubmit');
+  
+  toggleBtn.addEventListener('click', () => {
+    isLogin = !isLogin;
+    title.textContent = isLogin ? 'Acesso Restrito' : 'Cadastro de Acesso';
+    btn.textContent = isLogin ? 'Entrar' : 'Cadastrar';
+    toggleBtn.textContent = isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar';
+  });
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('authUsername').value;
+    const password = document.getElementById('authPassword').value;
+    const endpoint = isLogin ? '/login' : '/register';
+    
+    showLoading(isLogin ? 'Entrando...' : 'Cadastrando...');
+    try {
+      const res = await fetch(`${API}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      
+      if (!data.success) throw new Error(data.error);
+      
+      if (isLogin) {
+        State.token = data.token;
+        localStorage.setItem('auth_token', data.token);
+        toast('Login efetuado com sucesso!', 'success');
+        showMainApp();
+      } else {
+        toast('Cadastro realizado! Agora você já pode entrar.', 'success');
+        isLogin = true;
+        title.textContent = 'Acesso Restrito';
+        btn.textContent = 'Entrar';
+        toggleBtn.textContent = 'Não tem conta? Cadastre-se';
+      }
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
+function setupSettings() {
+  const modal = document.getElementById('settingsModal');
+  
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    // Preencher valores atuais
+    Object.keys(State.models).forEach(k => {
+      document.getElementById(`selProv_${k}`).value = State.models[k].provider;
+      window.updateModels(k);
+      document.getElementById(`selMod_${k}`).value = State.models[k].model;
+    });
+    modal.classList.remove('hidden');
+  });
+  
+  document.getElementById('btnCloseSettings').addEventListener('click', () => modal.classList.add('hidden'));
+  
+  document.getElementById('btnSaveSettings').addEventListener('click', () => {
+    State.models = {
+      text: { provider: document.getElementById('selProv_text').value, model: document.getElementById('selMod_text').value },
+      vision: { provider: document.getElementById('selProv_vision').value, model: document.getElementById('selMod_vision').value },
+      spec: { provider: document.getElementById('selProv_spec').value, model: document.getElementById('selMod_spec').value },
+      image: { provider: document.getElementById('selProv_image').value, model: document.getElementById('selMod_image').value }
+    };
+    localStorage.setItem('ai_models', JSON.stringify(State.models));
+    modal.classList.add('hidden');
+    toast('Configurações salvas!', 'success');
+  });
+}
+
+window.updateModels = function(type) {
+  const prov = document.getElementById(`selProv_${type}`).value;
+  const modSel = document.getElementById(`selMod_${type}`);
+  modSel.innerHTML = AVAILABLE_MODELS[type][prov].map(m => `<option value="${m}">${m}</option>`).join('');
+};
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 function setupTabs() {
@@ -53,8 +188,40 @@ function setupTabs() {
   });
 }
 
-// ─── File Inputs ──────────────────────────────────────────────────────────────
+// ─── File Inputs e Sync Drive ──────────────────────────────────────────────────
 function setupFileInputs() {
+  document.getElementById('btnSyncDrive').addEventListener('click', async () => {
+    showLoading('Sincronizando com Google Drive...', 'Baixando roteiro, identificação e vídeo original (pode levar alguns minutos dependendo do vídeo)');
+    try {
+      const r = await apiFetch('/sync-drive', { method: 'POST' });
+      const data = await r.json();
+      if (!data.success) throw new Error(data.error);
+
+      State.roteiro = data.traducao;
+      State.identificacao = data.identificacao;
+      State.videoPath = data.video_path; // guardando o caminho local no server
+      
+      updateChips();
+      if (State.identificacao.title) {
+        document.querySelector('.page-sub').textContent = State.identificacao.title;
+      }
+      
+      // Atualizar a interface do video para mostrar que já foi vinculado
+      document.getElementById('videoUploadZone').classList.add('hidden');
+      const info = document.getElementById('videoInfo');
+      info.classList.remove('hidden');
+      document.getElementById('videoName').textContent = '✅ Vinculado via Drive (video_original.mp4)';
+      document.getElementById('videoSize').textContent = 'Pronto no Servidor';
+      document.getElementById('btnExtrairFrames').disabled = false;
+
+      toast('Sincronização com o Drive concluída!', 'success');
+    } catch (err) {
+      toast(`Erro ao sincronizar: ${err.message}`, 'error');
+    } finally {
+      hideLoading();
+    }
+  });
+
   document.getElementById('inputRoteiro').addEventListener('change', async e => {
     const file = e.target.files[0]; if (!file) return;
     try {
@@ -154,10 +321,14 @@ async function gerarGuia() {
   showLoading('Gerando guia com DeepSeek V3...', 'Analisando roteiro e criando conteúdo viral');
 
   try {
-    const r = await fetch(`${API}/generate-guide`, {
+    const r = await apiFetch('/generate-guide', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roteiro: State.roteiro, identificacao: State.identificacao })
+      body: JSON.stringify({ 
+        roteiro: State.roteiro, 
+        identificacao: State.identificacao,
+        modelConfig: State.models.text
+      })
     });
     const data = await r.json();
     if (!data.success) throw new Error(data.error);
@@ -252,6 +423,7 @@ function setupThumb() {
     document.getElementById('videoInfo').classList.add('hidden');
     document.getElementById('videoUploadZone').classList.remove('hidden');
     State._videoFile = null;
+    State.videoPath = null;
     document.getElementById('btnExtrairFrames').disabled = true;
   });
 
@@ -271,12 +443,12 @@ async function finalizarELimpar() {
   showLoading('Limpando Sessão...', 'Apagando vídeos e imagens do servidor');
   try {
     // 1. Chamar o backend para apagar tudo
-    await fetch(`${API}/cleanup-session`, {
+    const r = await apiFetch('/cleanup-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessao_id: State.sessaoExtracao,
-        video_path: State._videoFile?.path, // Se estiver rodando local no app desktop (file_path local)
+        video_path: State.videoPath || State._videoFile?.path,
         spec_file: State.specFinal?.arquivo_local, // precisamos saber se guardamos.
         images: State.thumbnailGerada ? [State.thumbnailGerada] : []
       })
@@ -299,6 +471,7 @@ async function finalizarELimpar() {
     State.specFinal = null;
     State.thumbnailGerada = null;
     State._videoFile = null;
+    State.videoPath = null;
     
     goToStep(1);
     toast('Sessão finalizada e arquivos limpos!', 'success');
@@ -339,10 +512,14 @@ async function analisarRoteiro() {
   showLoading('Analisando roteiro...', 'DeepSeek V3 identificando momentos-chave e templates ideais');
 
   try {
-    const r = await fetch(`${API}/analyze-script`, {
+    const r = await apiFetch('/analyze-script', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roteiro: State.roteiro, identificacao: State.identificacao })
+      body: JSON.stringify({ 
+        roteiro: State.roteiro, 
+        identificacao: State.identificacao,
+        modelConfig: State.models.text
+      })
     });
     const data = await r.json();
     if (!data.success) throw new Error(data.error);
@@ -420,17 +597,31 @@ function renderFramesInfo(frames) {
 
 // ─── Etapa 3: Extrair Frames ──────────────────────────────────────────────────
 async function extrairFrames() {
-  if (!State._videoFile || !State.templateSelecionado) return;
+  if ((!State._videoFile && !State.videoPath) || !State.templateSelecionado) return;
 
   const frames = State.templateSelecionado.frames_necessarios;
   showLoading('Extraindo frames do vídeo...', `Processando ${frames.length} janelas de tempo com ffmpeg`);
 
   try {
-    const fd = new FormData();
-    fd.append('video', State._videoFile);
-    fd.append('frames_config', JSON.stringify(frames));
-
-    const r = await fetch(`${API}/extract-frames`, { method: 'POST', body: fd });
+    let r;
+    if (State.videoPath) {
+      // Uso de vídeo baixado do Drive via backend
+      r = await apiFetch('/extract-frames', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frames_config: JSON.stringify(frames),
+          video_path: State.videoPath
+        })
+      });
+    } else {
+      // Uso de vídeo upado via Input File local
+      const fd = new FormData();
+      fd.append('video', State._videoFile);
+      fd.append('frames_config', JSON.stringify(frames));
+      r = await apiFetch('/extract-frames', { method: 'POST', body: fd });
+    }
+    
     
     if (!r.ok) {
       if (r.status === 413) throw new Error("Vídeo muito grande! O limite de requisição padrão do Cloud Run é 32MB. Mude para a Gen 2 do Cloud Run.");
@@ -526,7 +717,7 @@ async function analisarFramesSelecionados() {
       const sel = State.framesSelecionados[f.papel_id];
       if (!sel) continue;
 
-      const r = await fetch(`${API}/analyze-frame`, {
+      const r = await apiFetch('/analyze-frame', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -534,7 +725,8 @@ async function analisarFramesSelecionados() {
           papel_id: f.papel_id,
           papel_descricao: f.papel_descricao,
           template: State.templateSelecionado.template,
-          emocao_buscada: f.emocao_buscada
+          emocao_buscada: f.emocao_buscada,
+          modelConfig: State.models.vision
         })
       });
       const data = await r.json();
@@ -585,14 +777,16 @@ async function gerarSpec() {
       analise: State.visionResultados[papelId]?.analise || {}
     }));
 
-    const r = await fetch(`${API}/generate-thumbnail-spec`, {
+    const r = await apiFetch('/generate-thumbnail-spec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         template: State.templateSelecionado.template,
+        template_obj: State.templateSelecionado,
         frames_selecionados: framesSelecionados,
         analise_roteiro: State.analiseRoteiro,
-        identificacao: State.identificacao
+        identificacao: State.identificacao,
+        modelConfig: State.models.spec
       })
     });
     const data = await r.json();
@@ -646,12 +840,13 @@ async function gerarThumbnailFinalIA() {
       timestamp: frame.timestamp
     }));
 
-    const r = await fetch(`${API}/generate-thumbnail`, {
+    const r = await apiFetch('/generate-thumbnail', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         spec: State.specFinal,
-        frames_selecionados: framesSelecionados
+        frames_selecionados: framesSelecionados,
+        modelConfig: State.models.image
       })
     });
     
