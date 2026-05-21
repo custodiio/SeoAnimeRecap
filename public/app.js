@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFileInputs();
   setupGuide();
   setupThumb();
+  setupCopyButtons();
   checkHealth();
 });
 
@@ -184,6 +185,35 @@ function setupTabs() {
       document.getElementById(`tab-${tab}`)?.classList.add('active');
       const titles = { guide: '📋 Guia de Postagem', thumb: '🖼️ Gerador de Capa' };
       document.getElementById('pageTitle').textContent = titles[tab] || '';
+    });
+  });
+}
+
+// ─── Botões de Copiar ──────────────────────────────────────────────────────────
+function setupCopyButtons() {
+  document.querySelectorAll('.btn-copy[data-copy]').forEach(btn => {
+    // Remove listeners antigos se houver (substituindo clone)
+    const newBtn = btn.cloneNode(true);
+    btn.replaceWith(newBtn);
+    
+    newBtn.addEventListener('click', () => {
+      const targetId = newBtn.getAttribute('data-copy');
+      const targetEl = document.getElementById(targetId);
+      if (!targetEl) return;
+      
+      let textToCopy = "";
+      if (targetId === "tagsYT" || targetId === "hashtagsYT") {
+        const tags = Array.from(targetEl.children).map(child => child.textContent.trim());
+        textToCopy = tags.join(", ");
+      } else {
+        textToCopy = targetEl.innerText || targetEl.textContent;
+      }
+      
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        toast('Copiado com sucesso!', 'success');
+      }).catch(err => {
+        toast('Erro ao copiar', 'error');
+      });
     });
   });
 }
@@ -813,10 +843,6 @@ function renderSpec(spec) {
     <span class="spec-chip">🗂 ${(spec.camadas || []).length} camadas</span>
     <span class="spec-chip">🎬 ${State.identificacao?.title || ''}</span>`;
 
-  // Botão copiar spec
-  document.querySelector('[data-copy="specJson"]')?.addEventListener('click', () => {
-    navigator.clipboard.writeText(JSON.stringify(spec, null, 2)).then(() => toast('JSON copiado!', 'success'));
-  });
 }
 
 function downloadSpec() {
