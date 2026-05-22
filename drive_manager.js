@@ -110,6 +110,53 @@ class DriveManager {
       }
     });
   }
+
+  /**
+   * Faz o upload de um arquivo local para o Drive. Cria se não existir, atualiza se já existir.
+   */
+  async uploadFileToPath(localPath, driveFolderPath, fileName, mimeType = 'application/octet-stream') {
+    if (!this.drive) throw new Error('Drive não autenticado.');
+
+    const folderId = await this.findIdByPath(driveFolderPath);
+    if (!folderId) {
+      console.log(`⚠️ Pasta não encontrada no Drive para upload: ${driveFolderPath}`);
+      return null;
+    }
+
+    const query = `name='${this.escapeQuery(fileName)}' and '${folderId}' in parents and trashed=false`;
+    const res = await this.drive.files.list({
+      q: query,
+      fields: 'files(id)',
+      spaces: 'drive'
+    });
+
+    const media = {
+      mimeType: mimeType,
+      body: fs.createReadStream(localPath)
+    };
+
+    if (res.data.files && res.data.files.length > 0) {
+      const fileId = res.data.files[0].id;
+      console.log(`📤 Upload (Update): ${fileName} -> ${driveFolderPath}`);
+      await this.drive.files.update({
+        fileId: fileId,
+        media: media
+      });
+      return fileId;
+    } else {
+      console.log(`📤 Upload (Create): ${fileName} -> ${driveFolderPath}`);
+      const fileMetadata = {
+        name: fileName,
+        parents: [folderId]
+      };
+      const result = await this.drive.files.create({
+        resource: fileMetadata,
+        media: media,
+        fields: 'id'
+      });
+      return result.data.id;
+    }
+  }
 }
 
 // Singleton

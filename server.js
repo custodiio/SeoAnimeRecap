@@ -335,6 +335,15 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
     const guia = JSON.parse(limparJson(content));
+
+    const specFile = `output/guia_postagem_${Date.now()}.json`;
+    if (!fs.existsSync("output")) fs.mkdirSync("output", { recursive: true });
+    fs.writeFileSync(specFile, JSON.stringify(guia, null, 2));
+
+    // Upload pro Drive assíncrono para o kaggle/pipeline/final
+    driveManager.uploadFileToPath(specFile, 'kaggle/pipeline/final', 'guia_postagem.json', 'application/json')
+      .catch(e => console.error("Erro no upload do guia pro Drive:", e));
+
     res.json({ success: true, guia });
   } catch (err) {
     console.error("❌ generate-guide:", err.message);
@@ -864,6 +873,15 @@ Instruções:
         const filepath = `output/${filename}`;
         fs.writeFileSync(filepath, buffer);
         saved.push({ url: `/output-img/${filename}`, path: filepath });
+      }
+    }
+
+    // Fazer o upload de cada imagem gerada (YouTube ou TikTok)
+    const driveName = isVertical ? 'thumbnail_tiktok.png' : 'thumbnail_youtube.png';
+    for (const img of saved) {
+      if (img.path) {
+        driveManager.uploadFileToPath(img.path, 'kaggle/pipeline/final', driveName, 'image/png')
+          .catch(e => console.error("Erro no upload da capa pro Drive:", e));
       }
     }
 
