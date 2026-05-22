@@ -298,7 +298,8 @@ app.post("/api/generate-guide", authMiddleware, async (req, res) => {
       .map((s) => s.translated_text)
       .join(" ");
 
-    const prompt = `Você é expert em SEO para YouTube de anime recap em pt-BR, focado em viralização máxima.
+    const prompt = `Você é o Kuma, dono do canal "Kuma Recap" no YouTube. Você cria roteiros e descrições para resumos de animes de forma carismática, engajante e focada em instigar o público a interagir nos comentários e deixar o like.
+Seu estilo é dinâmico, direto, e você sempre conversa com sua "alcateia" ou "família Kuma".
 
 ANIME: ${identificacao.title} (${identificacao.title_jp})
 PROTAGONISTA: ${identificacao.protagonist}
@@ -306,23 +307,27 @@ PERSONAGENS: ${identificacao.characters.join(", ")}
 SINOPSE: ${identificacao.synopsis}
 NARRAÇÃO: ${narrativa}
 
-Retorne SOMENTE JSON válido, sem markdown, sem explicações:
+Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte estrutura:
 {
-  "titulo_principal": "título hook MÁXIMO — drama, curiosidade, spoiler velado. Ex: ELE ESTAVA MORTO... MAS VOLTOU COM TUDO | Wistoria EP X",
+  "titulo_principal": "título hook MÁXIMO — drama, curiosidade, spoiler velado. Se tiver o título do anime, inclua. Ex: ELE ESTAVA MORTO... MAS VOLTOU COM TUDO! | ${identificacao.title} EP X",
   "titulos_alternativos": ["alt 1", "alt 2", "alt 3"],
-  "descricao": "600-900 palavras em pt-BR ultra-otimizado para SEO. Hook no 1º parágrafo, narrativa dramática, CTA forte, timestamps e emojis estratégicos 🔥⚔️😱",
-  "hashtags_youtube": ["#Wistoria", "#AnimeRecap"],
-  "tags_youtube": "wistoria, wand and sword, anime recap, wistoria react, ...",
+  "descricao": "NÃO resuma o vídeo. Crie algo instigante. Comece com uma pergunta provocativa sobre o episódio para gerar comentários. Formato Kuma Recap:\\n1. Hook/Pergunta bombástica envolvendo o episódio!\\n2. Call to Action forte para a Família Kuma se inscrever no canal e deixar o like.\\n3. Breve comentário pessoal (como o Kuma) sobre o momento épico.\\n4. Timestamps.",
+  "hashtags_youtube": ["#KumaRecap", "#${identificacao.title.replace(/\\s+/g, "")}", "INCLUIR EXATAMENTE 15 HASHTAGS RELEVANTES AO ANIME E AO CANAL"],
+  "tags_youtube": "kuma recap, ${identificacao.title}, anime recap, resumo de anime, ...",
   "capitulos": [{"tempo": "0:00", "titulo": "🔥 Intro"}, {"tempo": "0:45", "titulo": "..."}],
   "cards_sugeridos": [{"tempo": "1:30", "texto": "Veja o episódio anterior!"}],
   "momento_gancho_thumbnail": "descrição do momento mais explosivo com timestamp",
-  "call_to_action_video": "CTA para dizer no vídeo",
-  "call_to_action_descricao": "CTA para a descrição",
+  "call_to_action_video": "CTA estilo Kuma Recap para pedir no vídeo: like, inscrição e um comentário para a alcateia",
+  "call_to_action_descricao": "CTA para a descrição focada em inscrição",
   "categoria": "Entretenimento",
-  "audiencia_alvo": "fãs de anime 15-28 anos que acompanham a season atual",
+  "audiencia_alvo": "fãs de anime 15-28 anos que acompanham resumos do canal Kuma Recap",
   "melhor_horario_postagem": "Sexta 18h ou Sábado 14h (horário de Brasília)",
-  "analise_emocional": "3 linhas sobre os picos emocionais",
-  "score_viral": 87
+  "analise_emocional": "3 linhas sobre os picos emocionais do episódio",
+  "score_viral": 87,
+  "tiktok_titulo": "Título curto, forte, com hook para incentivar comentários",
+  "tiktok_sinopse": "Use a sinopse fornecida acima. Se não houver, crie uma breve com base no roteiro",
+  "tiktok_hashtags": ["#viral", "#anime", "incluir exatamente 5 hashtags virais/relevantes"],
+  "tiktok_descricao": "Descrição engajante para TikTok com perguntas provocativas"
 }`;
 
     const content = await callAI(prompt, req.body.modelConfig);
@@ -654,6 +659,83 @@ Retorne SOMENTE JSON válido com esta estrutura:
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ROTA 5.1 — Gerar Spec JSON da Thumbnail (TikTok 3:4)
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post("/api/generate-tiktok-spec", authMiddleware, async (req, res) => {
+  try {
+    const { template, template_obj, frames_selecionados, analise_roteiro, identificacao } =
+      req.body;
+
+    const textoPrincipal = template_obj?.texto_capa || "TEXTO PRINCIPAL";
+    const subtexto = template_obj?.subtexto || "";
+    const paleta = template_obj?.paleta || "dark_purple";
+
+    const prompt = `Você é diretor de arte de thumbnails virais para TikTok (formato 3:4) de anime.
+Gere o SPEC JSON de composição para renderização com Python/Pillow.
+
+TEMPLATE: ${template} | ANIME: ${identificacao?.title || "Anime"}
+TEXTO CAPA: "${textoPrincipal}" | SUBTEXTO: "${subtexto}"
+PALETA DE CORES DEFINIDA: "${paleta}"
+FRAMES ANALISADOS: ${JSON.stringify(frames_selecionados, null, 2)}
+CONTEXTO: ${analise_roteiro?.resumo_para_thumbnail || ""}
+
+Regras por template (ADAPTADAS PARA 3:4 - VERTICAL/QUADRADO ALTO):
+- HEROI_REACAO: hero_frame em cima, reaction_frame embaixo, com divisão na diagonal.
+- TENSAO_DUAL: dois frames um em cima do outro separados por linha de tensão horizontal.
+- OVER_POWERED: frame central grande com efeitos de aura vertical.
+- STRIP_REACOES: 3 frames em coluna vertical.
+- VIRADA_NARRATIVA: frame grande vertical com texto dramático sobreposto.
+
+Instruções de Inteligência e Adaptação dos Frames:
+- A Paleta de Cores deve ser rigorosamente respeitada. Adapte as cores usando os códigos Hexadecimais corretos.
+- Contorne falhas nos frames: se o frame não for perfeito, foque no elemento principal da cena.
+- Remoção de distrações: instrua a remoção de elementos de fundo inúteis.
+- Recortes em vez de "quadradões": prefira recortes focados na silhueta.
+
+Retorne SOMENTE JSON válido com esta estrutura:
+{
+  "spec_version": "2.0",
+  "template": "${template}",
+  "paleta": "${paleta}",
+  "canvas": {"width": 1080, "height": 1440},
+  "camadas": [
+    {"id": "bg", "tipo": "gradiente", "ordem": 1, "cores": ["#COR_HEX1", "#COR_HEX2"], "direcao": "vertical"},
+    {"id": "hero_frame", "tipo": "imagem_frame", "ordem": 2, "papel_id": "hero",
+      "posicao_canvas": {"x": 0, "y": 0, "w": 1080, "h": 800},
+      "crop": {"x_pct": 10, "y_pct": 0, "w_pct": 80, "h_pct": 100},
+      "ajustes": {"brilho": 1.1, "contraste": 1.25, "saturacao": 1.3},
+      "efeito_borda": "fade_bottom"},
+    {"id": "texto_principal", "tipo": "texto", "ordem": 5,
+      "conteudo": "${textoPrincipal}",
+      "posicao_canvas": {"x": 50, "y": 900, "w": 980, "h": 200},
+      "fonte": {"familia": "Impact", "tamanho": 100, "peso": "black"},
+      "cor_texto": "#FFD700",
+      "outline": {"cor": "#000000", "espessura": 8},
+      "sombra": {"cor": "#000000", "x": 4, "y": 4, "blur": 15}}
+  ],
+  "efeitos_globais": {"vignette": 0.40, "color_grade": "dramatic_dark"},
+  "paleta": {"nome": "dark_gold", "primaria": "#FFD700", "secundaria": "#FF6B35", "fundo": "#0a0a1a"},
+  "export": {"formato": "PNG", "qualidade": 95, "resolucao": "1080x1440"},
+  "metadata": {"anime": "${identificacao?.title || ""}", "template": "${template}", "gerado_em": "${new Date().toISOString()}"}
+}`;
+
+    const content = await callAI(prompt, req.body.modelConfig);
+    if (!content.trim())
+      throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
+
+    const spec = JSON.parse(limparJson(content));
+
+    const specFile = `output/specs/tiktok_spec_${Date.now()}.json`;
+    fs.writeFileSync(specFile, JSON.stringify(spec, null, 2));
+
+    res.json({ success: true, spec, spec_file: specFile });
+  } catch (err) {
+    console.error("❌ generate-tiktok-spec:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ROTA 6 — Gerar Thumbnail Final (IA)
 // ═══════════════════════════════════════════════════════════════════════════════
 app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
@@ -701,20 +783,35 @@ Instruções:
     
     let saved = [];
     
+    const isVertical = spec.canvas && spec.canvas.height > spec.canvas.width;
+    const dalleSize = isVertical ? "1024x1792" : "1792x1024";
+
     // Tenta Google primeiro (se google estiver no config ou for default) ou OpenAI direto
     if (imgConfig.provider === "openai") {
       try {
-        const response = await openai.images.generate({
-          model: imgConfig.model || "dall-e-3",
+        const reqOpts = {
+          model: imgConfig.model || "gpt-image-2",
           prompt: promptText.substring(0, 950),
           n: 1,
-          size: "1792x1024",
-          quality: "hd",
-        });
-        const imageUrl = response.data[0].url;
-        const imgRes = await fetch(imageUrl);
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-        const filename = `thumbnail_dalle_${Date.now()}.png`;
+          size: dalleSize,
+          response_format: "b64_json"
+        };
+        // Para garantir compatibilidade com dall-e-3 e gpt-image-2
+        if (imgConfig.model === "dall-e-3") reqOpts.quality = "hd";
+
+        const response = await openai.images.generate(reqOpts);
+        
+        let buffer;
+        if (response.data[0].b64_json) {
+          buffer = Buffer.from(response.data[0].b64_json, "base64");
+        } else if (response.data[0].url) {
+          const imgRes = await fetch(response.data[0].url);
+          buffer = Buffer.from(await imgRes.arrayBuffer());
+        } else {
+          throw new Error("A API não retornou b64_json nem URL.");
+        }
+        
+        const filename = `thumbnail_openai_${Date.now()}.png`;
         const filepath = `output/${filename}`;
         fs.writeFileSync(filepath, buffer);
         saved.push({ url: `/output-img/${filename}`, path: filepath });
@@ -745,19 +842,25 @@ Instruções:
           throw new Error("SDK não retornou bytes binários na resposta do generateContent");
         }
       } catch (imgErr) {
-        console.warn("⚠️ Fallback DALL-E 3 ativado:", imgErr.message);
+        console.warn("⚠️ Fallback ativado:", imgErr.message);
 
         const response = await openai.images.generate({
-          model: "dall-e-3",
+          model: "gpt-image-2",
           prompt: promptText.substring(0, 950), // limite do dalle
           n: 1,
-          size: "1792x1024",
-          quality: "hd",
+          size: dalleSize,
+          response_format: "b64_json"
         });
-        const imageUrl = response.data[0].url;
-        const imgRes = await fetch(imageUrl);
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-        const filename = `thumbnail_dalle_${Date.now()}.png`;
+        
+        let buffer;
+        if (response.data[0].b64_json) {
+          buffer = Buffer.from(response.data[0].b64_json, "base64");
+        } else if (response.data[0].url) {
+          const imgRes = await fetch(response.data[0].url);
+          buffer = Buffer.from(await imgRes.arrayBuffer());
+        }
+
+        const filename = `thumbnail_fallback_${Date.now()}.png`;
         const filepath = `output/${filename}`;
         fs.writeFileSync(filepath, buffer);
         saved.push({ url: `/output-img/${filename}`, path: filepath });

@@ -335,15 +335,6 @@ function setupGuide() {
     });
   }
 
-  document.querySelectorAll('.btn-copy').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.dataset.copy;
-      const el = document.getElementById(targetId);
-      if (!el) return;
-      const text = el.innerText || el.textContent;
-      navigator.clipboard.writeText(text).then(() => toast('Copiado!', 'success'));
-    });
-  });
 }
 
 async function gerarGuia() {
@@ -425,6 +416,21 @@ function renderGuia(g) {
   // CTAs
   document.getElementById('ctaVideo').textContent = g.call_to_action_video || '';
   document.getElementById('ctaDescricao').textContent = g.call_to_action_descricao || '';
+
+  // TikTok fields
+  const tTitle = document.getElementById('tiktokTitulo');
+  if (tTitle) tTitle.textContent = g.tiktok_titulo || '';
+
+  const tSinopse = document.getElementById('tiktokSinopse');
+  if (tSinopse) tSinopse.textContent = g.tiktok_sinopse || '';
+
+  const tDesc = document.getElementById('tiktokDescricao');
+  if (tDesc) tDesc.textContent = g.tiktok_descricao || '';
+
+  const tHashtags = document.getElementById('tiktokHashtags');
+  if (tHashtags) {
+    tHashtags.innerHTML = (g.tiktok_hashtags || []).map(h => `<span class="hashtag-chip">${h}</span>`).join('');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -460,8 +466,10 @@ function setupThumb() {
   document.getElementById('btnExtrairFrames').addEventListener('click', extrairFrames);
   document.getElementById('btnConfirmarFrames').addEventListener('click', analisarFramesSelecionados);
   document.getElementById('btnGerarSpec').addEventListener('click', gerarSpec);
+  document.getElementById('btnGerarSpecTikTok')?.addEventListener('click', gerarSpecTikTok);
   document.getElementById('btnDownloadSpec').addEventListener('click', downloadSpec);
   document.getElementById('btnRenderThumbnail').addEventListener('click', gerarThumbnailFinalIA);
+  document.getElementById('btnRenderThumbnailTikTok')?.addEventListener('click', gerarThumbnailFinalIA);
   document.getElementById('btnNovaIteracao').addEventListener('click', () => goToStep(3));
   document.getElementById('btnVoltarTemplates').addEventListener('click', () => goToStep(2));
   document.getElementById('btnFinalizarLimpar').addEventListener('click', finalizarELimpar);
@@ -826,6 +834,43 @@ async function gerarSpec() {
     renderSpec(data.spec);
     goToStep(4);
     toast('Spec JSON gerado!', 'success');
+  } catch (err) {
+    toast(`Erro: ${err.message}`, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function gerarSpecTikTok() {
+  showLoading('Gerando Spec JSON TikTok...', 'DeepSeek montando o blueprint da thumbnail 3:4');
+
+  try {
+    const framesSelecionados = Object.entries(State.framesSelecionados).map(([papelId, frame]) => ({
+      papel_id: papelId,
+      url: frame.url,
+      timestamp: frame.timestamp,
+      analise: State.visionResultados[papelId]?.analise || {}
+    }));
+
+    const r = await apiFetch('/generate-tiktok-spec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template: State.templateSelecionado.template,
+        template_obj: State.templateSelecionado,
+        frames_selecionados: framesSelecionados,
+        analise_roteiro: State.analiseRoteiro,
+        identificacao: State.identificacao,
+        modelConfig: State.models.spec
+      })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error);
+
+    State.specFinal = data.spec;
+    renderSpec(data.spec);
+    goToStep(4);
+    toast('Spec JSON TikTok gerado!', 'success');
   } catch (err) {
     toast(`Erro: ${err.message}`, 'error');
   } finally {

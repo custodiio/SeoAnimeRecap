@@ -192,6 +192,34 @@
         </div>
       </div>
 
+      <!-- TikTok Guide -->
+      <div class="result-card" style="border: 2px solid #00f2fe; margin-top: 24px;">
+        <h2 style="margin-bottom: 16px;">📱 Guia TikTok</h2>
+        <div class="result-card-header">
+          <h3>Título (Hook)</h3>
+          <button class="btn-copy" data-copy="tiktokTitulo">Copiar</button>
+        </div>
+        <div class="titulo-principal-box" id="tiktokTitulo"></div>
+
+        <div class="result-card-header" style="margin-top:16px;">
+          <h3>Sinopse / Roteiro Adaptado</h3>
+          <button class="btn-copy" data-copy="tiktokSinopse">Copiar</button>
+        </div>
+        <pre class="descricao-box" id="tiktokSinopse"></pre>
+        
+        <div class="result-card-header" style="margin-top:16px;">
+          <h3>Descrição Completa</h3>
+          <button class="btn-copy" data-copy="tiktokDescricao">Copiar</button>
+        </div>
+        <pre class="descricao-box" id="tiktokDescricao"></pre>
+
+        <div class="result-card-header" style="margin-top:16px;">
+          <h3>Hashtags</h3>
+          <button class="btn-copy" data-copy="tiktokHashtags">Copiar</button>
+        </div>
+        <div class="hashtags-box" id="tiktokHashtags"></div>
+      </div>
+
     </div>
   </section>
 
@@ -357,10 +385,18 @@
             ⬇️ Baixar spec.json
           </button>
           
-          <div style="margin-top:24px;">
+          <div style="margin-top:24px; display: flex; gap: 16px; flex-wrap: wrap;">
             <button class="btn-primary btn-large" id="btnRenderThumbnail">
               <span class="btn-icon">✨</span>
-              <span>Gerar Thumbnail com IA (Gemini 3 Pro Image)</span>
+              <span>Gerar Thumbnail com IA (16:9)</span>
+            </button>
+            <button class="btn-primary btn-large" id="btnGerarSpecTikTok" style="background-color: #00f2fe; color: #000;">
+              <span class="btn-icon">📱</span>
+              <span>Gerar Spec JSON (TikTok 3:4)</span>
+            </button>
+            <button class="btn-primary btn-large" id="btnRenderThumbnailTikTok" style="background-color: #00f2fe; color: #000;">
+              <span class="btn-icon">📱✨</span>
+              <span>Gerar Thumbnail (TikTok 3:4)</span>
             </button>
           </div>
 
