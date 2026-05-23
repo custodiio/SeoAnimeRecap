@@ -90,47 +90,109 @@ function showMainApp() {
 }
 
 function setupAuth() {
-  let isLogin = true;
+  let authMode = 'login'; // 'login', 'register', 'forgot'
   const toggleBtn = document.getElementById('authToggle');
+  const forgotBtn = document.getElementById('authForgotToggle');
   const form = document.getElementById('authForm');
   const title = document.getElementById('authTitle');
+  const subtitle = document.getElementById('authSubtitle');
   const btn = document.getElementById('btnAuthSubmit');
+  const emailInput = document.getElementById('authEmail');
+  const passwordInput = document.getElementById('authPassword');
   
+  function updateAuthUI() {
+    if (authMode === 'login') {
+      title.textContent = 'Acesso Restrito';
+      subtitle.textContent = 'Faça login para utilizar a ferramenta';
+      btn.textContent = 'Entrar';
+      emailInput.classList.add('hidden');
+      emailInput.required = false;
+      passwordInput.placeholder = 'Senha';
+      passwordInput.required = true;
+      toggleBtn.textContent = 'Não tem conta? Cadastre-se';
+      forgotBtn.classList.remove('hidden');
+      forgotBtn.textContent = 'Esqueceu a senha?';
+    } else if (authMode === 'register') {
+      title.textContent = 'Cadastro de Acesso';
+      subtitle.textContent = 'Preencha os dados abaixo para criar sua conta.';
+      btn.textContent = 'Cadastrar';
+      emailInput.classList.remove('hidden');
+      emailInput.required = true;
+      passwordInput.placeholder = 'Senha';
+      passwordInput.required = true;
+      toggleBtn.textContent = 'Já tem conta? Entrar';
+      forgotBtn.classList.add('hidden');
+    } else if (authMode === 'forgot') {
+      title.textContent = 'Recuperar Senha';
+      subtitle.textContent = 'Digite seu Usuário, E-mail e Nova Senha para redefinir.';
+      btn.textContent = 'Alterar Senha';
+      emailInput.classList.remove('hidden');
+      emailInput.required = true;
+      passwordInput.placeholder = 'Nova Senha';
+      passwordInput.required = true;
+      toggleBtn.textContent = 'Voltar para Entrar';
+      forgotBtn.classList.add('hidden');
+    }
+  }
+
   toggleBtn.addEventListener('click', () => {
-    isLogin = !isLogin;
-    title.textContent = isLogin ? 'Acesso Restrito' : 'Cadastro de Acesso';
-    btn.textContent = isLogin ? 'Entrar' : 'Cadastrar';
-    toggleBtn.textContent = isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar';
+    if (authMode === 'login') {
+      authMode = 'register';
+    } else {
+      authMode = 'login';
+    }
+    updateAuthUI();
+  });
+  
+  forgotBtn.addEventListener('click', () => {
+    authMode = 'forgot';
+    updateAuthUI();
   });
   
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('authUsername').value;
-    const password = document.getElementById('authPassword').value;
-    const endpoint = isLogin ? '/login' : '/register';
+    const email = emailInput.value;
+    const password = passwordInput.value;
     
-    showLoading(isLogin ? 'Entrando...' : 'Cadastrando...');
+    let endpoint = '/login';
+    let bodyData = { username, password };
+    let loadingMsg = 'Entrando...';
+    
+    if (authMode === 'register') {
+      endpoint = '/register';
+      bodyData = { username, email, password };
+      loadingMsg = 'Cadastrando...';
+    } else if (authMode === 'forgot') {
+      endpoint = '/forgot-password';
+      bodyData = { username, email, password };
+      loadingMsg = 'Atualizando senha...';
+    }
+    
+    showLoading(loadingMsg);
     try {
       const res = await fetch(`${API}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(bodyData)
       });
       const data = await res.json();
       
-      if (!data.success) throw new Error(data.error);
+      if (!data.success) throw new Error(data.error || "Erro desconhecido.");
       
-      if (isLogin) {
+      if (authMode === 'login') {
         State.token = data.token;
         localStorage.setItem('auth_token', data.token);
         toast('Login efetuado com sucesso!', 'success');
         showMainApp();
-      } else {
+      } else if (authMode === 'register') {
         toast('Cadastro realizado! Agora você já pode entrar.', 'success');
-        isLogin = true;
-        title.textContent = 'Acesso Restrito';
-        btn.textContent = 'Entrar';
-        toggleBtn.textContent = 'Não tem conta? Cadastre-se';
+        authMode = 'login';
+        updateAuthUI();
+      } else if (authMode === 'forgot') {
+        toast('Senha alterada com sucesso! Você já pode entrar com a nova senha.', 'success');
+        authMode = 'login';
+        updateAuthUI();
       }
     } catch (err) {
       toast(err.message, 'error');
@@ -138,6 +200,8 @@ function setupAuth() {
       hideLoading();
     }
   });
+
+  updateAuthUI();
 }
 
 function setupSettings() {

@@ -16,7 +16,7 @@ const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec } = require("child_process");
 const jwt = require("jsonwebtoken");
-const { registerUser, verifyUser } = require("./database");
+const { registerUser, verifyUser, resetPassword } = require("./database");
 const driveManager = require("./drive_manager");
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_anime_recap";
@@ -143,16 +143,30 @@ function extrairFrames(
 // ─── Autenticação ─────────────────────────────────────────────────────────────
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) return res.status(400).json({ error: "Usuário, E-mail e senha são obrigatórios" });
     
     const approvedUser = process.env.APPROVED_USERS;
     if (approvedUser && username !== approvedUser) {
       return res.status(403).json({ error: "Você não tem permissão para se cadastrar neste sistema." });
     }
 
-    const user = await registerUser(username, password);
+    const user = await registerUser(username, email, password);
     res.json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/forgot-password", async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "Usuário, E-mail e Nova Senha são obrigatórios" });
+    }
+    
+    const result = await resetPassword(username, email, password);
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
