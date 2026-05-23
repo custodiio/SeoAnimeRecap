@@ -768,7 +768,7 @@ function renderFramesExtraidos(resultados) {
         ${(papel.frames_extraidos || []).map(f => `
           <div class="frame-card" data-papel="${papel.papel_id}" data-url="${f.url}" data-ts="${f.timestamp}"
                onclick="selecionarFrame('${papel.papel_id}', '${f.url}', ${f.timestamp}, this)">
-            <img src="${f.url}" alt="t=${f.timestamp}s" loading="lazy" />
+            <img src="${f.url.startsWith('/') ? f.url.substring(1) : f.url}" alt="t=${f.timestamp}s" loading="lazy" />
             <div class="frame-timestamp">${f.timestamp}s</div>
             <div class="frame-selected-badge">✓ Selecionado</div>
           </div>`).join('')}
@@ -850,7 +850,7 @@ function renderVisionResultados(resultados) {
   const container = document.getElementById('visionResultados');
   container.innerHTML = Object.entries(resultados).map(([papelId, { frame, analise: a }]) => `
     <div class="vision-card">
-      <div class="vision-thumb"><img src="${frame.url}" alt="${papelId}" /></div>
+      <div class="vision-thumb"><img src="${frame.url.startsWith('/') ? frame.url.substring(1) : frame.url}" alt="${papelId}" /></div>
       <div>
         <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:var(--accent)">${papelId.toUpperCase()} — t=${frame.timestamp}s</div>
         <div class="vision-score-row">
@@ -896,6 +896,7 @@ async function gerarSpec() {
 
     State.specFinal = data.spec;
     renderSpec(data.spec);
+    updateStep4Buttons('youtube');
     goToStep(4);
     toast('Spec JSON gerado!', 'success');
   } catch (err) {
@@ -933,6 +934,7 @@ async function gerarSpecTikTok() {
 
     State.specFinal = data.spec;
     renderSpec(data.spec);
+    updateStep4Buttons('tiktok');
     goToStep(4);
     toast('Spec JSON TikTok gerado!', 'success');
   } catch (err) {
@@ -995,13 +997,13 @@ async function gerarThumbnailFinalIA() {
       
       const imgInfo = data.images[0];
       State.thumbnailGerada = imgInfo;
-      resultImage.src = imgInfo.url;
+      resultImage.src = imgInfo.url.startsWith('/') ? imgInfo.url.substring(1) : imgInfo.url;
       resultContainer.classList.remove('hidden');
       
       btnDownload.onclick = () => {
         const a = document.createElement('a');
-        a.href = imgInfo.url;
-        a.download = `youtube_thumbnail_${Date.now()}.png`;
+        a.href = imgInfo.url.startsWith('/') ? imgInfo.url.substring(1) : imgInfo.url;
+        a.download = imgInfo.url.includes('tiktok') ? `tiktok_thumbnail_${Date.now()}.png` : `youtube_thumbnail_${Date.now()}.png`;
         a.click();
       };
       
@@ -1015,6 +1017,22 @@ async function gerarThumbnailFinalIA() {
     toast(`Erro ao gerar thumbnail: ${err.message}`, 'error');
   } finally {
     hideLoading();
+  }
+}
+
+function updateStep4Buttons(mode) {
+  const btnRender169 = document.getElementById('btnRenderThumbnail');
+  const btnSpecTikTok = document.getElementById('btnGerarSpecTikTok');
+  const btnRenderTikTok = document.getElementById('btnRenderThumbnailTikTok');
+
+  if (mode === 'youtube') {
+    if (btnRender169) btnRender169.classList.remove('hidden');
+    if (btnSpecTikTok) btnSpecTikTok.classList.remove('hidden');
+    if (btnRenderTikTok) btnRenderTikTok.classList.add('hidden');
+  } else if (mode === 'tiktok') {
+    if (btnRender169) btnRender169.classList.add('hidden');
+    if (btnSpecTikTok) btnSpecTikTok.classList.add('hidden');
+    if (btnRenderTikTok) btnRenderTikTok.classList.remove('hidden');
   }
 }
 

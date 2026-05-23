@@ -815,15 +815,20 @@ Instruções:
     // Tenta Google primeiro (se google estiver no config ou for default) ou OpenAI direto
     if (imgConfig.provider === "openai") {
       try {
+        const modelName = imgConfig.model || "gpt-image-2";
         const reqOpts = {
-          model: imgConfig.model || "gpt-image-2",
+          model: modelName,
           prompt: promptText.substring(0, 950),
           n: 1,
-          size: dalleSize,
-          response_format: "b64_json"
+          size: dalleSize
         };
         // Para garantir compatibilidade com dall-e-3 e gpt-image-2
-        if (imgConfig.model === "dall-e-3") reqOpts.quality = "hd";
+        if (modelName === "dall-e-3" || modelName === "dall-e-2") {
+          reqOpts.response_format = "b64_json";
+          if (modelName === "dall-e-3") {
+            reqOpts.quality = "hd";
+          }
+        }
 
         const response = await openai.images.generate(reqOpts);
         
@@ -874,8 +879,7 @@ Instruções:
           model: "gpt-image-2",
           prompt: promptText.substring(0, 950), // limite do dalle
           n: 1,
-          size: dalleSize,
-          response_format: "b64_json"
+          size: dalleSize
         });
         
         let buffer;
