@@ -19,8 +19,11 @@ const jwt = require("jsonwebtoken");
 const { registerUser, verifyUser, resetPassword } = require("./database");
 const driveManager = require("./drive_manager");
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_anime_recap";
-
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("❌ ERRO CRÍTICO: JWT_SECRET não foi configurado no arquivo .env!");
+  process.exit(1);
+}
 const app = express();
 const PORT = process.env.PORT || 3333;
 
