@@ -22,7 +22,7 @@ const State = {
   }
 };
 
-const API = '/api';
+const API = 'api';
 
 // A constante AVAILABLE_MODELS agora está em config_modelos.js
 
