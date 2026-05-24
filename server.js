@@ -13,6 +13,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
 const OpenAI = require("openai");
+const { toFile } = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec } = require("child_process");
 const jwt = require("jsonwebtoken");
@@ -801,8 +802,9 @@ app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
     console.log("   -> Spec template:", spec.template, "canvas:", spec.canvas);
     console.log("   -> Frames selecionados recebidos:", JSON.stringify(frames_selecionados));
 
-    // Lendo os frames como Base64 para enviar pra IA
+    // Lendo os frames como Base64 para enviar pra IA (Gemini) e Uploadable (OpenAI)
     const imageParts = [];
+    const imagesForOpenAI = [];
     if (frames_selecionados && frames_selecionados.length > 0) {
       for (const f of frames_selecionados) {
         const p = f.path;
@@ -813,10 +815,20 @@ app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
           imageParts.push({
             inlineData: { data: b64, mimeType: "image/jpeg" },
           });
+          
+          try {
+            const fileStream = fs.createReadStream(p);
+            const name = path.basename(p);
+            const uploadable = await toFile(fileStream, name, { type: "image/jpeg" });
+            imagesForOpenAI.push(uploadable);
+          } catch (errOpenAIFile) {
+            console.error(`❌ Erro ao converter frame para formato OpenAI toFile:`, errOpenAIFile.message);
+          }
         }
       }
     }
-    console.log(`   -> Total de imageParts anexados na requisição: ${imageParts.length}`);
+    console.log(`   -> Total de imageParts anexados (Gemini): ${imageParts.length}`);
+    console.log(`   -> Total de imagesForOpenAI prontos (OpenAI): ${imagesForOpenAI.length}`);
 
     const promptText = `
 Você é um diretor de arte. Gere a arte final da thumbnail do YouTube baseada nos frames fornecidos e neste SPEC JSON de composição:
@@ -854,27 +866,33 @@ Instruções:
         const dallePrompt = buildDallePrompt(spec);
         console.log("   -> Prompt enviado para OpenAI:", dallePrompt);
 
-        const reqOpts = {
-          model: modelName,
-          prompt: dallePrompt,
-          n: 1,
-          size: dalleSize
-        };
-        
-        // Se houver imagens de referência e o modelo aceitar (como gpt-image-2), anexe as referências no corpo
-        if (imageParts.length > 0) {
-          reqOpts.images = imageParts.map(part => part.inlineData.data);
-        }
-
-        // Para garantir compatibilidade com dall-e-3 e gpt-image-2
-        if (modelName === "dall-e-3" || modelName === "dall-e-2") {
-          reqOpts.response_format = "b64_json";
-          if (modelName === "dall-e-3") {
-            reqOpts.quality = "hd";
+        let response;
+        if (modelName === "gpt-image-2" && imagesForOpenAI.length > 0) {
+          console.log(`   -> Chamando openai.images.edit com gpt-image-2 e ${imagesForOpenAI.length} referências...`);
+          response = await openai.images.edit({
+            model: modelName,
+            image: imagesForOpenAI.length === 1 ? imagesForOpenAI[0] : imagesForOpenAI,
+            prompt: dallePrompt,
+            n: 1,
+            size: dalleSize
+          });
+        } else {
+          console.log(`   -> Chamando openai.images.generate com modelo ${modelName}...`);
+          const reqOpts = {
+            model: modelName,
+            prompt: dallePrompt,
+            n: 1,
+            size: dalleSize
+          };
+          
+          if (modelName === "dall-e-3" || modelName === "dall-e-2") {
+            reqOpts.response_format = "b64_json";
+            if (modelName === "dall-e-3") {
+              reqOpts.quality = "hd";
+            }
           }
+          response = await openai.images.generate(reqOpts);
         }
-
-        const response = await openai.images.generate(reqOpts);
         
         let buffer;
         if (response.data[0].b64_json) {
@@ -917,21 +935,29 @@ Instruções:
           throw new Error("SDK não retornou bytes binários na resposta do generateContent");
         }
       } catch (imgErr) {
+        console.warn("⚠️ Falha na geração com Imagen 3, iniciando Fallback com gpt-image-2 da OpenAI...", imgErr.message);
         const fallbackPrompt = buildDallePrompt(spec);
         console.log("   -> [Fallback OpenAI] Prompt enviado:", fallbackPrompt);
 
-        const reqOptsFallback = {
-          model: "gpt-image-2",
-          prompt: fallbackPrompt,
-          n: 1,
-          size: dalleSize
-        };
-
-        if (imageParts.length > 0) {
-          reqOptsFallback.images = imageParts.map(part => part.inlineData.data);
+        let response;
+        if (imagesForOpenAI.length > 0) {
+          console.log(`   -> [Fallback] Chamando openai.images.edit com gpt-image-2 e ${imagesForOpenAI.length} referências...`);
+          response = await openai.images.edit({
+            model: "gpt-image-2",
+            image: imagesForOpenAI.length === 1 ? imagesForOpenAI[0] : imagesForOpenAI,
+            prompt: fallbackPrompt,
+            n: 1,
+            size: dalleSize
+          });
+        } else {
+          console.log(`   -> [Fallback] Chamando openai.images.generate com gpt-image-2...`);
+          response = await openai.images.generate({
+            model: "gpt-image-2",
+            prompt: fallbackPrompt,
+            n: 1,
+            size: dalleSize
+          });
         }
-
-        const response = await openai.images.generate(reqOptsFallback);
         
         let buffer;
         if (response.data[0].b64_json) {
