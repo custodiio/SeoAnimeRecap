@@ -266,9 +266,10 @@ function setupCopyButtons() {
       if (!targetEl) return;
       
       let textToCopy = "";
-      if (targetId === "tagsYT" || targetId === "hashtagsYT") {
+      if (targetId === "tagsYT" || targetId === "hashtagsYT" || targetId === "instagramHashtags") {
+        const separator = targetId === "instagramHashtags" ? " " : ", ";
         const tags = Array.from(targetEl.children).map(child => child.textContent.trim());
-        textToCopy = tags.join(", ");
+        textToCopy = tags.join(separator);
       } else {
         textToCopy = targetEl.innerText || targetEl.textContent;
       }
@@ -481,19 +482,13 @@ function renderGuia(g) {
   document.getElementById('ctaVideo').textContent = g.call_to_action_video || '';
   document.getElementById('ctaDescricao').textContent = g.call_to_action_descricao || '';
 
-  // TikTok fields
-  const tTitle = document.getElementById('tiktokTitulo');
-  if (tTitle) tTitle.textContent = g.tiktok_titulo || '';
+  // TikTok & Instagram fields
+  const tGuia = document.getElementById('tiktokGuia');
+  if (tGuia) tGuia.textContent = g.tiktok_guia || '';
 
-  const tSinopse = document.getElementById('tiktokSinopse');
-  if (tSinopse) tSinopse.textContent = g.tiktok_sinopse || '';
-
-  const tDesc = document.getElementById('tiktokDescricao');
-  if (tDesc) tDesc.textContent = g.tiktok_descricao || '';
-
-  const tHashtags = document.getElementById('tiktokHashtags');
-  if (tHashtags) {
-    tHashtags.innerHTML = (g.tiktok_hashtags || []).map(h => `<span class="hashtag-chip">${h}</span>`).join('');
+  const iHashtags = document.getElementById('instagramHashtags');
+  if (iHashtags) {
+    iHashtags.innerHTML = (g.instagram_hashtags || []).map(h => `<span class="hashtag-chip" style="background:rgba(225,48,108,0.1);border-color:rgba(225,48,108,0.3);color:#e1306c">${h}</span>`).join('');
   }
 }
 

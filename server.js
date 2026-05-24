@@ -370,10 +370,8 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
   "melhor_horario_postagem": "Sexta 18h ou Sábado 14h (horário de Brasília)",
   "analise_emocional": "3 linhas sobre os picos emocionais do episódio",
   "score_viral": 87,
-  "tiktok_titulo": "Título curto, forte, com hook para incentivar comentários",
-  "tiktok_sinopse": "Use a sinopse fornecida acima. Se não houver, crie uma breve com base no roteiro",
-  "tiktok_hashtags": ["#viral", "#anime", "incluir exatamente 5 hashtags virais/relevantes"],
-  "tiktok_descricao": "Descrição engajante para TikTok com perguntas provocativas"
+  "tiktok_guia": "[Crie um título hook curto e chamativo instigando a comentar, ex: 'Você aceitaria esse pacto? 😳']\\n\\nTitulo: ${identificacao.title}\\n\\nSinopse: [Traduza a sinopse '${identificacao.synopsis.replace(/"/g, '\\"')}' para português de forma super envolvente]\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5",
+  "instagram_hashtags": ["#hashtag1", "#hashtag2", "#hashtag3", "#hashtag4", "#hashtag5"]
 }`;
 
     const content = await callAI(prompt, req.body.modelConfig);
