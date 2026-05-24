@@ -75,6 +75,34 @@ function limparJson(raw) {
     .trim();
 }
 
+function buildDallePrompt(spec) {
+  let prompt = "An anime-style thumbnail. ";
+  
+  if (spec.metadata && spec.metadata.anime) {
+    prompt += `Subject: anime "${spec.metadata.anime}". `;
+  }
+  
+  if (spec.template) {
+    prompt += `Layout style: ${spec.template}. `;
+  }
+  
+  if (spec.paleta) {
+    const paletaNome = typeof spec.paleta === 'object' ? spec.paleta.nome : spec.paleta;
+    prompt += `Color palette: ${paletaNome}. `;
+  }
+
+  // Extract texts
+  if (spec.camadas && spec.camadas.length > 0) {
+    const textLayers = spec.camadas.filter(l => l.tipo === 'texto');
+    if (textLayers.length > 0) {
+      prompt += "Include bold text: " + textLayers.map(l => `"${l.conteudo}"`).join(", ") + ". ";
+    }
+  }
+
+  prompt += "High quality anime key visual, dramatic lighting, clean composition, vivid colors, viral YouTube thumbnail style, no watermarks.";
+  return prompt;
+}
+
 function extrairFrames(
   videoPath,
   start,
@@ -823,12 +851,21 @@ Instruções:
     if (imgConfig.provider === "openai") {
       try {
         const modelName = imgConfig.model || "gpt-image-2";
+        const dallePrompt = buildDallePrompt(spec);
+        console.log("   -> Prompt enviado para OpenAI:", dallePrompt);
+
         const reqOpts = {
           model: modelName,
-          prompt: promptText.substring(0, 950),
+          prompt: dallePrompt,
           n: 1,
           size: dalleSize
         };
+        
+        // Se houver imagens de referência e o modelo aceitar (como gpt-image-2), anexe as referências no corpo
+        if (imageParts.length > 0) {
+          reqOpts.images = imageParts.map(part => part.inlineData.data);
+        }
+
         // Para garantir compatibilidade com dall-e-3 e gpt-image-2
         if (modelName === "dall-e-3" || modelName === "dall-e-2") {
           reqOpts.response_format = "b64_json";
@@ -880,14 +917,21 @@ Instruções:
           throw new Error("SDK não retornou bytes binários na resposta do generateContent");
         }
       } catch (imgErr) {
-        console.warn("⚠️ Fallback ativado:", imgErr.message);
+        const fallbackPrompt = buildDallePrompt(spec);
+        console.log("   -> [Fallback OpenAI] Prompt enviado:", fallbackPrompt);
 
-        const response = await openai.images.generate({
+        const reqOptsFallback = {
           model: "gpt-image-2",
-          prompt: promptText.substring(0, 950), // limite do dalle
+          prompt: fallbackPrompt,
           n: 1,
           size: dalleSize
-        });
+        };
+
+        if (imageParts.length > 0) {
+          reqOptsFallback.images = imageParts.map(part => part.inlineData.data);
+        }
+
+        const response = await openai.images.generate(reqOptsFallback);
         
         let buffer;
         if (response.data[0].b64_json) {
