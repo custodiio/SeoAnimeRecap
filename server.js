@@ -769,12 +769,18 @@ app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
     const { spec, frames_selecionados } = req.body;
     if (!spec) return res.status(400).json({ error: "spec é obrigatório." });
 
+    console.log("📸 [API/generate-thumbnail] Recebido pedido para gerar capa.");
+    console.log("   -> Spec template:", spec.template, "canvas:", spec.canvas);
+    console.log("   -> Frames selecionados recebidos:", JSON.stringify(frames_selecionados));
+
     // Lendo os frames como Base64 para enviar pra IA
     const imageParts = [];
     if (frames_selecionados && frames_selecionados.length > 0) {
       for (const f of frames_selecionados) {
         const p = f.path;
-        if (p && fs.existsSync(p)) {
+        const exists = p && fs.existsSync(p);
+        console.log(`   -> Frame ${f.papel_id} | Path: ${p} | Existe no disco? ${exists}`);
+        if (p && exists) {
           const b64 = fs.readFileSync(p).toString("base64");
           imageParts.push({
             inlineData: { data: b64, mimeType: "image/jpeg" },
@@ -782,6 +788,7 @@ app.post("/api/generate-thumbnail", authMiddleware, async (req, res) => {
         }
       }
     }
+    console.log(`   -> Total de imageParts anexados na requisição: ${imageParts.length}`);
 
     const promptText = `
 Você é um diretor de arte. Gere a arte final da thumbnail do YouTube baseada nos frames fornecidos e neste SPEC JSON de composição:
