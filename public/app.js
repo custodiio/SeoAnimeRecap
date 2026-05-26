@@ -29,6 +29,7 @@ const API = 'api';
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initFirebase();
+  setupAuth();
   setupSettings();
   
   setupTabs();
