@@ -438,3 +438,76 @@ html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--b
 .settings-select:focus { outline: none; border-color: var(--accent); }
 .settings-hint { font-size: 12px; color: var(--text2); margin-top: -6px; }
 
+/* ── Estilos Premium Firebase Auth & Google ── */
+.btn-google {
+  background: #ffffff;
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+.btn-google:hover {
+  background: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+}
+.btn-google:active {
+  background: #eeeeee;
+  transform: translateY(0);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text2);
+  font-size: 12px;
+  margin: 12px 0;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+.auth-divider:not(:empty)::before {
+  margin-right: 1em;
+}
+.auth-divider:not(:empty)::after {
+  margin-left: 1em;
+}
+
+/* Animação Pulse Premium */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px rgba(0, 242, 254, 0.4));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 15px rgba(0, 242, 254, 0.8));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px rgba(0, 242, 254, 0.4));
+  }
+}
+
+.approval-icon {
+  display: inline-block;
+  animation: pulse 2.5s infinite ease-in-out;
+}
+
+

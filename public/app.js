@@ -28,13 +28,8 @@ const API = 'api';
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  setupAuth();
+  initFirebase();
   setupSettings();
-  if (State.token) {
-    showMainApp();
-  } else {
-    showAuth();
-  }
   
   setupTabs();
   setupFileInputs();
@@ -56,8 +51,12 @@ async function apiFetch(endpoint, options = {}) {
   if (response.status === 401 || response.status === 403) {
     localStorage.removeItem('auth_token');
     State.token = null;
-    showAuth();
-    throw new Error("Sessão expirada. Faça login novamente.");
+    if (firebaseAuth) {
+      firebaseAuth.signOut();
+    } else {
+      showAuth();
+    }
+    throw new Error("Sessão expirada ou não aprovada pelo administrador.");
   }
   return response;
 }
@@ -81,12 +80,119 @@ function showAuth() {
   document.getElementById('authSection').classList.remove('hidden');
   document.getElementById('sidebar').classList.add('hidden');
   document.getElementById('mainContent').classList.add('hidden');
+  document.getElementById('approvalSection').classList.add('hidden');
 }
 
 function showMainApp() {
   document.getElementById('authSection').classList.add('hidden');
   document.getElementById('sidebar').classList.remove('hidden');
   document.getElementById('mainContent').classList.remove('hidden');
+  document.getElementById('approvalSection').classList.add('hidden');
+}
+
+function showApprovalScreen(userName, userEmail) {
+  document.getElementById('authSection').classList.add('hidden');
+  document.getElementById('sidebar').classList.add('hidden');
+  document.getElementById('mainContent').classList.add('hidden');
+  document.getElementById('approvalSection').classList.remove('hidden');
+  
+  document.getElementById('approvalUserName').textContent = `Nome: ${userName || 'Não informado'}`;
+  document.getElementById('approvalUserEmail').textContent = `E-mail: ${userEmail || 'Não informado'}`;
+}
+
+let firebaseAuth = null;
+let firebaseFirestore = null;
+
+async function initFirebase() {
+  try {
+    const res = await fetch(`${API}/firebase-config`);
+    if (!res.ok) throw new Error("Não foi possível obter a configuração do Firebase.");
+    const firebaseConfig = await res.json();
+    
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    firebaseAuth = firebase.auth();
+    firebaseFirestore = firebase.firestore();
+    
+    console.log("🔥 Firebase Client inicializado com sucesso.");
+    
+    // Ouvinte reativo de login
+    firebaseAuth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const idToken = await user.getIdToken(true);
+          
+          // Verificar aprovação com o backend
+          const loginRes = await fetch(`${API}/firebase-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: idToken })
+          });
+          
+          const loginData = await loginRes.json();
+          
+          if (!loginRes.ok) {
+            toast(loginData.error || "Erro ao validar permissões no servidor.", "error");
+            showApprovalScreen(user.displayName || user.email.split('@')[0], user.email);
+            return;
+          }
+          
+          State.token = idToken;
+          localStorage.setItem('auth_token', idToken);
+          
+          if (loginData.approved) {
+            showMainApp();
+          } else {
+            showApprovalScreen(user.displayName || user.email.split('@')[0], user.email);
+          }
+        } catch (err) {
+          console.error("Erro na verificação de aprovação:", err);
+          toast("Erro de conexão ao verificar aprovação.", "error");
+          showApprovalScreen(user.displayName || user.email, user.email);
+        }
+      } else {
+        State.token = null;
+        localStorage.removeItem('auth_token');
+        showAuth();
+      }
+    });
+    
+    // Botões da tela de aprovação
+    document.getElementById('btnCheckApproval').addEventListener('click', async () => {
+      showLoading("Verificando aprovação...");
+      const currentUser = firebaseAuth.currentUser;
+      if (currentUser) {
+        try {
+          const idToken = await currentUser.getIdToken(true);
+          const loginRes = await fetch(`${API}/firebase-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: idToken })
+          });
+          const loginData = await loginRes.json();
+          if (loginRes.ok && loginData.approved) {
+            State.token = idToken;
+            localStorage.setItem('auth_token', idToken);
+            showMainApp();
+            toast("Acesso aprovado! Bem-vindo.", "success");
+          } else {
+            toast(loginData.message || "Seu acesso ainda está pendente de aprovação.", "info");
+          }
+        } catch (err) {
+          toast("Erro ao verificar. Tente novamente.", "error");
+        }
+      }
+      hideLoading();
+    });
+    
+    document.getElementById('btnApprovalLogout').addEventListener('click', () => {
+      if (firebaseAuth) firebaseAuth.signOut();
+    });
+    
+  } catch (err) {
+    console.error("Erro ao inicializar Firebase no frontend:", err.message);
+    toast("Falha crítica ao conectar com o Firebase. Verifique o console.", "error");
+  }
 }
 
 function setupAuth() {
@@ -97,18 +203,34 @@ function setupAuth() {
   const title = document.getElementById('authTitle');
   const subtitle = document.getElementById('authSubtitle');
   const btn = document.getElementById('btnAuthSubmit');
+  
+  const nameInput = document.getElementById('authName');
+  const phoneInput = document.getElementById('authPhone');
   const emailInput = document.getElementById('authEmail');
   const passwordInput = document.getElementById('authPassword');
   
+  const googleBtn = document.getElementById('btnGoogleAuth');
+  const authDivider = document.getElementById('authDivider');
+
   function updateAuthUI() {
+    nameInput.classList.add('hidden');
+    nameInput.required = false;
+    phoneInput.classList.add('hidden');
+    phoneInput.required = false;
+    emailInput.classList.remove('hidden');
+    emailInput.placeholder = 'E-mail';
+    emailInput.required = true;
+    passwordInput.classList.remove('hidden');
+    passwordInput.required = true;
+    
+    googleBtn.classList.remove('hidden');
+    authDivider.classList.remove('hidden');
+    
     if (authMode === 'login') {
       title.textContent = 'Acesso Restrito';
       subtitle.textContent = 'Faça login para utilizar a ferramenta';
       btn.textContent = 'Entrar';
-      emailInput.classList.add('hidden');
-      emailInput.required = false;
       passwordInput.placeholder = 'Senha';
-      passwordInput.required = true;
       toggleBtn.textContent = 'Não tem conta? Cadastre-se';
       forgotBtn.classList.remove('hidden');
       forgotBtn.textContent = 'Esqueceu a senha?';
@@ -116,20 +238,25 @@ function setupAuth() {
       title.textContent = 'Cadastro de Acesso';
       subtitle.textContent = 'Preencha os dados abaixo para criar sua conta.';
       btn.textContent = 'Cadastrar';
-      emailInput.classList.remove('hidden');
-      emailInput.required = true;
       passwordInput.placeholder = 'Senha';
-      passwordInput.required = true;
+      
+      nameInput.classList.remove('hidden');
+      nameInput.required = true;
+      phoneInput.classList.remove('hidden');
+      phoneInput.required = true;
+      
       toggleBtn.textContent = 'Já tem conta? Entrar';
       forgotBtn.classList.add('hidden');
     } else if (authMode === 'forgot') {
       title.textContent = 'Recuperar Senha';
-      subtitle.textContent = 'Digite seu Usuário, E-mail e Nova Senha para redefinir.';
-      btn.textContent = 'Alterar Senha';
-      emailInput.classList.remove('hidden');
-      emailInput.required = true;
-      passwordInput.placeholder = 'Nova Senha';
-      passwordInput.required = true;
+      subtitle.textContent = 'Digite seu e-mail para enviar as instruções de redefinição.';
+      btn.textContent = 'Enviar E-mail de Recuperação';
+      passwordInput.classList.add('hidden');
+      passwordInput.required = false;
+      
+      googleBtn.classList.add('hidden');
+      authDivider.classList.add('hidden');
+      
       toggleBtn.textContent = 'Voltar para Entrar';
       forgotBtn.classList.add('hidden');
     }
@@ -151,50 +278,73 @@ function setupAuth() {
   
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = document.getElementById('authUsername').value;
-    const email = emailInput.value;
+    if (!firebaseAuth) {
+      toast("Firebase não inicializado. Verifique a conexão.", "error");
+      return;
+    }
+    
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const email = emailInput.value.trim();
     const password = passwordInput.value;
     
-    let endpoint = '/login';
-    let bodyData = { username, password };
     let loadingMsg = 'Entrando...';
-    
-    if (authMode === 'register') {
-      endpoint = '/register';
-      bodyData = { username, email, password };
-      loadingMsg = 'Cadastrando...';
-    } else if (authMode === 'forgot') {
-      endpoint = '/forgot-password';
-      bodyData = { username, email, password };
-      loadingMsg = 'Atualizando senha...';
-    }
+    if (authMode === 'register') loadingMsg = 'Criando conta...';
+    if (authMode === 'forgot') loadingMsg = 'Enviando e-mail...';
     
     showLoading(loadingMsg);
     try {
-      const res = await fetch(`${API}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyData)
-      });
-      const data = await res.json();
-      
-      if (!data.success) throw new Error(data.error || "Erro desconhecido.");
-      
       if (authMode === 'login') {
-        State.token = data.token;
-        localStorage.setItem('auth_token', data.token);
-        toast('Login efetuado com sucesso!', 'success');
-        showMainApp();
+        await firebaseAuth.signInWithEmailAndPassword(email, password);
       } else if (authMode === 'register') {
-        toast('Cadastro realizado! Agora você já pode entrar.', 'success');
-        authMode = 'login';
-        updateAuthUI();
+        const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        await user.updateProfile({ displayName: name });
+        
+        if (firebaseFirestore) {
+          await firebaseFirestore.collection("users").doc(user.uid).set({
+            uid: user.uid,
+            name: name,
+            phone: phone,
+            email: email,
+            approved: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        
+        toast('Cadastro realizado! Aguarde a aprovação do administrador.', 'success');
       } else if (authMode === 'forgot') {
-        toast('Senha alterada com sucesso! Você já pode entrar com a nova senha.', 'success');
+        await firebaseAuth.sendPasswordResetEmail(email);
+        toast('E-mail de recuperação enviado com sucesso!', 'success');
         authMode = 'login';
         updateAuthUI();
       }
     } catch (err) {
+      console.error(err);
+      let errorMsg = err.message;
+      if (err.code === 'auth/user-not-found') errorMsg = "Usuário não encontrado.";
+      if (err.code === 'auth/wrong-password') errorMsg = "Senha incorreta.";
+      if (err.code === 'auth/email-already-in-use') errorMsg = "Este e-mail já está em uso.";
+      if (err.code === 'auth/weak-password') errorMsg = "A senha deve ter pelo menos 6 caracteres.";
+      if (err.code === 'auth/invalid-email') errorMsg = "Formato de e-mail inválido.";
+      toast(errorMsg, 'error');
+    } finally {
+      hideLoading();
+    }
+  });
+
+  googleBtn.addEventListener('click', async () => {
+    if (!firebaseAuth) {
+      toast("Firebase não inicializado. Verifique a conexão.", "error");
+      return;
+    }
+    showLoading("Conectando com o Google...");
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await firebaseAuth.signInWithPopup(provider);
+    } catch (err) {
+      console.error(err);
       toast(err.message, 'error');
     } finally {
       hideLoading();

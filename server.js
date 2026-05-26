@@ -16,15 +16,45 @@ const OpenAI = require("openai");
 const { toFile } = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec } = require("child_process");
-const jwt = require("jsonwebtoken");
-const { registerUser, verifyUser, resetPassword } = require("./database");
+const admin = require("firebase-admin");
 const driveManager = require("./drive_manager");
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error("❌ ERRO CRÍTICO: JWT_SECRET não foi configurado no arquivo .env!");
-  process.exit(1);
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID;
+const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+let firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+if (firebasePrivateKey) {
+  firebasePrivateKey = firebasePrivateKey.replace(/\\n/g, '\n');
 }
+
+if (firebaseProjectId && firebaseClientEmail && firebasePrivateKey && !firebaseClientEmail.includes("firebase-adminsdk-xxxxx")) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: firebaseProjectId,
+        clientEmail: firebaseClientEmail,
+        privateKey: firebasePrivateKey,
+      }),
+    });
+    console.log("✅ Firebase Admin SDK inicializado com sucesso.");
+  } catch (err) {
+    console.error("❌ Erro ao inicializar Firebase Admin SDK com credenciais:", err.message);
+  }
+} else {
+  console.warn("⚠️ Firebase Admin SDK não foi configurado ou contém valores padrão.");
+  console.warn("⚠️ Por favor, preencha as variáveis FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY no seu arquivo .env.");
+  try {
+    admin.initializeApp({
+      projectId: firebaseProjectId || "aidramadub"
+    });
+    console.log("✅ Firebase Admin SDK inicializado em modo de desenvolvimento (sem credenciais de Firestore).");
+  } catch (err) {
+    console.error("❌ Erro na inicialização simplificada do Firebase Admin:", err.message);
+  }
+}
+
+const dbFirestore = admin.apps.length ? admin.firestore() : null;
+
 const app = express();
 const PORT = process.env.PORT || 3333;
 
@@ -172,60 +202,94 @@ function extrairFrames(
   });
 }
 
-// ─── Autenticação ─────────────────────────────────────────────────────────────
-app.post("/api/register", async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) return res.status(400).json({ error: "Usuário, E-mail e senha são obrigatórios" });
-    
-    const approvedUser = process.env.APPROVED_USERS;
-    if (approvedUser && username !== approvedUser) {
-      return res.status(403).json({ error: "Você não tem permissão para se cadastrar neste sistema." });
-    }
-
-    const user = await registerUser(username, email, password);
-    res.json({ success: true, user });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+// ─── Autenticação Firebase ────────────────────────────────────────────────────
+app.get("/api/firebase-config", (req, res) => {
+  res.json({
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID || "aidramadub",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID
+  });
 });
 
-app.post("/api/forgot-password", async (req, res) => {
+app.post("/api/firebase-login", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: "Usuário, E-mail e Nova Senha são obrigatórios" });
-    }
-    
-    const result = await resetPassword(username, email, password);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token do Firebase é obrigatório" });
 
-app.post("/api/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const user = await verifyUser(username, password);
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ success: true, token, username: user.username });
+    // 1. Validar Token
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    const uid = decodedToken.uid;
+    const email = decodedToken.email;
+
+    // 2. Verificar no Firestore se as credenciais de admin estão prontas
+    if (!dbFirestore) {
+      // Se não estiver configurado o admin SDK privado (.env sem chaves de serviço),
+      // retornamos um aviso descritivo para o usuário configurar.
+      return res.status(500).json({ error: "O Firebase Admin SDK não foi configurado corretamente no servidor (.env ausente de credenciais FIREBASE_CLIENT_EMAIL ou FIREBASE_PRIVATE_KEY)." });
+    }
+
+    const userDoc = await dbFirestore.collection("users").doc(uid).get();
+    
+    // Se o usuário não existir no Firestore (ex: fez login com Google pela primeira vez)
+    if (!userDoc.exists) {
+      // Criar documento do usuário pendente de aprovação
+      const newUser = {
+        uid: uid,
+        name: decodedToken.name || email.split("@")[0],
+        email: email,
+        phone: decodedToken.phone_number || "",
+        approved: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      await dbFirestore.collection("users").doc(uid).set(newUser);
+      return res.json({ success: true, approved: false, message: "Usuário registrado com sucesso no banco! Aguarde aprovação do administrador." });
+    }
+
+    const userData = userDoc.data();
+    if (!userData.approved) {
+      return res.json({ success: true, approved: false, message: "Sua conta está criada, mas pendente de aprovação manual pelo administrador." });
+    }
+
+    res.json({ success: true, approved: true, username: userData.name || email.split("@")[0] });
   } catch (err) {
+    console.error("Erro no login Firebase do backend:", err.message);
     res.status(401).json({ error: err.message });
   }
 });
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Acesso negado. Token não fornecido." });
   
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: "Token inválido ou expirado." });
-    req.user = user;
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    
+    if (dbFirestore) {
+      const userDoc = await dbFirestore.collection("users").doc(decodedToken.uid).get();
+      if (!userDoc.exists) {
+        return res.status(403).json({ error: "Conta criada, mas pendente de aprovação do administrador." });
+      }
+      const userData = userDoc.data();
+      if (!userData.approved) {
+        return res.status(403).json({ error: "Conta pendente de aprovação. Aguarde a liberação do administrador." });
+      }
+    } else {
+      return res.status(500).json({ error: "Firebase Admin não configurado no servidor (.env sem credenciais administrativas)." });
+    }
+    
     next();
-  });
+  } catch (err) {
+    console.error("Erro na verificação do token Firebase:", err.message);
+    return res.status(403).json({ error: "Token inválido, expirado ou acesso não autorizado." });
+  }
 }
+
 
 // ─── Dispatcher de Modelos ──────────────────────────────────────────────────
 async function callAI(prompt, config, imageBase64 = null) {
