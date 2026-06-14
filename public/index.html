@@ -350,10 +350,14 @@
             <h2>🤖 Análise Vision dos Frames</h2>
           </div>
           <div id="visionResultados"></div>
-          <div class="card-body">
+          <div class="card-body" style="display: flex; gap: 16px; flex-wrap: wrap;">
             <button class="btn-primary btn-large" id="btnGerarSpec">
-              <span class="btn-icon">⚡</span>
-              <span>Gerar Spec JSON da Thumbnail</span>
+              <span class="btn-icon">✨</span>
+              <span>Gerar Spec JSON (16:9)</span>
+            </button>
+            <button class="btn-primary btn-large" id="btnGerarSpecTikTokEtapa3" style="background-color: #00f2fe; color: #000;">
+              <span class="btn-icon">📱</span>
+              <span>Gerar Spec JSON (TikTok 9:16)</span>
             </button>
           </div>
         </div>
@@ -385,11 +389,11 @@
             </button>
             <button class="btn-primary btn-large" id="btnGerarSpecTikTok" style="background-color: #00f2fe; color: #000;">
               <span class="btn-icon">📱</span>
-              <span>Gerar Spec JSON (TikTok 3:4)</span>
+              <span>Gerar Spec JSON (TikTok 9:16)</span>
             </button>
             <button class="btn-primary btn-large hidden" id="btnRenderThumbnailTikTok" style="background-color: #00f2fe; color: #000;">
               <span class="btn-icon">📱✨</span>
-              <span>Gerar Thumbnail (TikTok 3:4)</span>
+              <span>Gerar Thumbnail (TikTok 9:16)</span>
             </button>
           </div>
 

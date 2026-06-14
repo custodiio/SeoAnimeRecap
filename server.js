@@ -130,7 +130,7 @@ function buildDallePrompt(spec) {
     }
   }
 
-  prompt += "High quality anime key visual, dramatic lighting, clean composition, vivid colors, viral YouTube thumbnail style, no watermarks.";
+  prompt += "High quality anime key visual, dramatic lighting, very clean composition with good negative space, vivid colors, viral YouTube thumbnail style, no watermarks. Do NOT overcrowd or fill the thumbnail with too many elements, make it clean and focused. Keep the character's original visual traits, clothing, colors, and the exact original anime/manhwa drawing/art style perfectly intact. You can change their poses or expressions to compose the thumbnail, but they must be highly recognizable and true to their source art style.";
   return prompt;
 }
 
@@ -421,8 +421,8 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
 {
   "titulo_principal": "título hook MÁXIMO — drama, curiosidade, spoiler velado. Se tiver o título do anime, inclua. Ex: ELE ESTAVA MORTO... MAS VOLTOU COM TUDO! | ${identificacao.title} EP X",
   "titulos_alternativos": ["alt 1", "alt 2", "alt 3"],
-  "descricao": "NÃO resuma o vídeo. Crie algo instigante. Comece com uma pergunta provocativa sobre o episódio para gerar comentários. Formato Kuma Recap:\\n1. Hook/Pergunta bombástica envolvendo o episódio!\\n2. Call to Action forte para a Família Kuma se inscrever no canal e deixar o like.\\n3. Breve comentário pessoal (como o Kuma) sobre o momento épico.\\n4. Timestamps.",
-  "hashtags_youtube": ["#KumaRecap", "#${identificacao.title.replace(/\\s+/g, "")}", "INCLUIR EXATAMENTE 15 HASHTAGS RELEVANTES AO ANIME E AO CANAL"],
+  "descricao": "NÃO resuma o vídeo. Crie algo instigante. Comece com uma pergunta provocativa sobre o episódio para gerar comentários. Formato Kuma Recap:\\n1. Hook/Pergunta bombástica envolvendo o episódio!\\n2. Call to Action forte para a Família Kuma se inscrever no canal e deixar o like.\\n3. Breve comentário pessoal (como o Kuma) sobre o momento épico.\\nATENÇÃO OBRIGATÓRIA: NÃO inclua timestamps, marcações de tempo ou capítulos de forma alguma nesta descrição. Ela deve ser limpa e sem capitulagem.",
+  "hashtags_youtube": ["INCLUIR EXATAMENTE 30 HASHTAGS RELEVANTES AO NICHO (EX: #anime, #animeresumo, #resumodeanime, #animerecap, #otaku, #geek, #mangarecap, #manhwa se aplicável, e termos específicos do anime). ATENÇÃO: NUNCA COLOQUE HASHTAGS DO SEU PRÓPRIO CANAL COMO #kumarecaps OU #KumaRecap, POIS NÃO TÊM HYPE E SÃO REDUNDANTES."],
   "tags_youtube": "kuma recap, ${identificacao.title}, anime recap, resumo de anime, ...",
   "capitulos": [{"tempo": "0:00", "titulo": "🔥 Intro"}, {"tempo": "0:45", "titulo": "..."}],
   "cards_sugeridos": [{"tempo": "1:30", "texto": "Veja o episódio anterior!"}],
@@ -434,8 +434,8 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
   "melhor_horario_postagem": "Sexta 18h ou Sábado 14h (horário de Brasília)",
   "analise_emocional": "3 linhas sobre os picos emocionais do episódio",
   "score_viral": 87,
-  "tiktok_guia": "[Crie um título hook curto e chamativo instigando a comentar, ex: 'Você aceitaria esse pacto? 😳']\\n\\nTitulo: ${identificacao.title}\\n\\nSinopse: [Traduza a sinopse '${identificacao.synopsis.replace(/"/g, '\\"')}' para português de forma super envolvente]\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5",
-  "instagram_hashtags": ["#hashtag1", "#hashtag2", "#hashtag3", "#hashtag4", "#hashtag5"]
+  "tiktok_guia": "[Crie um título hook curto e chamativo instigando a comentar, ex: 'Você aceitaria esse pacto? 😳']\\n\\nTitulo: ${identificacao.title}\\n\\nSinopse: [Traduza a sinopse '${identificacao.synopsis.replace(/"/g, '\\"')}' para português de forma super envolvente]\\n\\n[INCLUA DE 5 A 8 HASHTAGS VIRAIS DO NICHO. Se o anime/manhwa não for muito conhecido, priorize hashtags com maior alcance do nicho como #manhwa, #webtoon, #anime, #animeresumo, #animerecap, #resumodeanime, #otaku ao invés de hashtags do canal. NÃO use hashtags como #kumarecaps ou similares.]",
+  "instagram_hashtags": ["INCLUIR DE 5 A 8 HASHTAGS VIRAIS DO NICHO. Se o anime for pouco conhecido, priorize hashtags de alto alcance do nicho como #manhwa, #anime, #otaku, #animeresumo, #animerecap, #resumodeanime, #geek, e nunca use hashtags do canal como #kumarecaps."]
 }`;
 
     const content = await callAI(prompt, req.body.modelConfig);
@@ -720,11 +720,13 @@ Regras por template:
 - VIRADA_NARRATIVA: frame grande com texto dramático sobreposto e seta ou relâmpago
 
 Instruções de Inteligência e Adaptação dos Frames:
+- COMPOSIÇÃO LIMPA E MINIMALISTA: Evite poluição visual e excesso de informações. O canvas não deve ser totalmente preenchido; mantenha espaços livres (respiro/negative space). Foque no personagem principal e remova fundos ou elementos secundários barulhentos.
+- FIDELIDADE DO TRAÇO E PERSONAGEM: Exija que o traço artístico/estilo de desenho do anime/manhwa de origem seja preservado. Os traços físicos do personagem, roupas, cores características e cabelos devem ser mantidos idênticos ao original.
+- Emoções, Poses e Ajustes: Permita alterar a pose ou expressão do personagem principal para tornar a imagem final dinâmica e adequada ao template, mas a fidelidade ao design original e estilo artístico do personagem deve ser mantida de forma estrita.
 - A Paleta de Cores deve ser rigorosamente respeitada. Adapte as cores da camada "bg" e os efeitos visuais (ex: cores de borda, textos, gradientes) para utilizar os códigos Hexadecimais corretos que correspondam visualmente à paleta solicitada ("${paleta}").
 - Contorne falhas nos frames: se o frame selecionado não tiver o personagem exato, adapte o foco para o elemento principal da cena.
-- Remoção de distrações: instrua a IA a remover personagens secundários ou expressões calmas que distoem da dramaticidade.
 - Recortes em vez de "quadradões": prefira indicar recortes focados apenas na silhueta/corpo do personagem principal, removendo fundos inúteis.
-- Emoções, Poses e Ajustes: instrua a modificação de reações e poses se o frame for apático. Indique a adição de pequenos detalhes nas bordas se o frame estiver levemente cortado.
+- Detalhes adicionais: se o frame estiver cortado, instrua a reconstrução inteligente das partes que faltam.
 
 Retorne SOMENTE JSON válido com esta estrutura:
 {
@@ -804,9 +806,11 @@ Regras por template (ADAPTADAS PARA 3:4 - VERTICAL/QUADRADO ALTO):
 - VIRADA_NARRATIVA: frame grande vertical com texto dramático sobreposto.
 
 Instruções de Inteligência e Adaptação dos Frames:
+- COMPOSIÇÃO LIMPA E MINIMALISTA (VERTICAL): Evite poluição visual e excesso de informações. O canvas vertical não deve ser totalmente preenchido; mantenha espaços livres (respiro/negative space). Foque no personagem principal e remova fundos ou elementos secundários barulhentos.
+- FIDELIDADE DO TRAÇO E PERSONAGEM: Exija que o traço artístico/estilo de desenho do anime/manhwa de origem seja preservado. Os traços físicos do personagem, roupas, cores características e cabelos devem ser mantidos idênticos ao original.
+- Emoções, Poses e Ajustes: Permita alterar a pose ou expressão do personagem principal para tornar a imagem final dinâmica e adequada ao template, mas a fidelidade ao design original e estilo artístico do personagem deve ser mantida de forma estrita.
 - A Paleta de Cores deve ser rigorosamente respeitada. Adapte as cores usando os códigos Hexadecimais corretos.
 - Contorne falhas nos frames: se o frame não for perfeito, foque no elemento principal da cena.
-- Remoção de distrações: instrua a remoção de elementos de fundo inúteis.
 - Recortes em vez de "quadradões": prefira recortes focados na silhueta.
 
 Retorne SOMENTE JSON válido com esta estrutura:
@@ -904,13 +908,15 @@ ${JSON.stringify(frames_selecionados.map(f => ({
 
 Instruções:
 - Utilize os frames fornecidos como base criativa, mas seja muito inteligente na adaptação.
+- COMPOSIÇÃO LIMPA E SEM EXCESSO DE INFORMAÇÃO: Mantenha a thumbnail limpa, com poucos elementos e bom espaço de respiro (negative space). Não preencha excessivamente a tela, evite imagens poluídas ou "cheias" de elementos dispersos.
+- FIDELIDADE DOS PERSONAGENS E DO TRAÇO: Mantenha fielmente as características visuais dos personagens (cores do cabelo, olhos, roupas, feições) e o traço/estilo artístico original do anime ou manhwa correspondente.
+- Poses e Expressões: Você pode modificar a pose, gestos ou a expressão facial dos personagens para encaixar melhor na composição da capa, mas faça isso mantendo as características e traços originais deles.
 - Contorne falhas nos frames: se o frame não mostrar a imagem perfeita, adapte e use o elemento mais em foco.
 - Isole os elementos: não use recortes "quadradões". Faça um recorte inteligente, focando apenas no personagem.
 - Remova distrações: se houver personagens de fundo, calmos ou indesejados que distoem da cena dramática, remova-os completamente.
 - Adicione detalhes: se o personagem do frame estiver com alguma parte cortada nas bordas, adicione pequenos detalhes para preencher o que falta.
-- Emoções e Poses: você tem total liberdade para mudar poses, criar novas reações faciais e alterar emoções para deixá-las dramáticas e impactantes, caso o frame base seja apático.
 - Aplique o texto, cores, fontes e estilo exatos definidos no JSON.
-- A imagem deve ter qualidade ultra-dramática, estilo anime, proporção 16:9.
+- A imagem deve ter qualidade ultra-dramática, estilo anime, proporção 16:9 (ou vertical se o JSON especificar canvas vertical).
 - Sem marcas d'água.
 `;
 

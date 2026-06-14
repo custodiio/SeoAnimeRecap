@@ -677,6 +677,7 @@ function setupThumb() {
   document.getElementById('btnConfirmarFrames').addEventListener('click', analisarFramesSelecionados);
   document.getElementById('btnGerarSpec').addEventListener('click', gerarSpec);
   document.getElementById('btnGerarSpecTikTok')?.addEventListener('click', gerarSpecTikTok);
+  document.getElementById('btnGerarSpecTikTokEtapa3')?.addEventListener('click', gerarSpecTikTok);
   document.getElementById('btnDownloadSpec').addEventListener('click', downloadSpec);
   document.getElementById('btnRenderThumbnail').addEventListener('click', gerarThumbnailFinalIA);
   document.getElementById('btnRenderThumbnailTikTok')?.addEventListener('click', gerarThumbnailFinalIA);
