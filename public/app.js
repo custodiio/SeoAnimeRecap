@@ -1288,7 +1288,11 @@ Instruções:
   Object.entries(State.framesSelecionados).forEach(([papelId, frame]) => {
     if (frame.url) {
       downloadsIniciados++;
-      const fileUrl = new URL(frame.url, window.location.origin).href;
+      
+      // Corrigindo resolução de caminho relativo para ambiente com subpasta (/seo/)
+      const baseUrl = window.location.href.endsWith('/') ? window.location.href : window.location.href + '/';
+      const cleanUrl = frame.url.startsWith('/') ? frame.url.substring(1) : frame.url;
+      const fileUrl = new URL(cleanUrl, baseUrl).href;
       
       const a = document.createElement('a');
       a.href = fileUrl;
