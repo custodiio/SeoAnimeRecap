@@ -423,6 +423,7 @@ html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--b
 .modal-box {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 30px; width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px;
+  max-height: 90vh; overflow-y: auto;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; }
 .modal-title { font-size: 18px; font-weight: 700; }

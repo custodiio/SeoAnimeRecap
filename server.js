@@ -78,6 +78,34 @@ const imagen3 = genAI.getGenerativeModel({
   model: "gemini-3-pro-image-preview",
 });
 
+// Instanciamento dinâmico com chaves vindas da requisição
+function getDeepseekClient(req) {
+  const customKey = req && req.headers && req.headers["x-deepseek-key"];
+  if (customKey && customKey.trim() !== "") {
+    return new OpenAI({
+      apiKey: customKey,
+      baseURL: "https://api.deepseek.com",
+    });
+  }
+  return deepseek;
+}
+
+function getOpenaiClient(req) {
+  const customKey = req && req.headers && req.headers["x-openai-key"];
+  if (customKey && customKey.trim() !== "") {
+    return new OpenAI({ apiKey: customKey });
+  }
+  return openai;
+}
+
+function getGoogleGenAI(req) {
+  const customKey = req && req.headers && req.headers["x-google-key"];
+  if (customKey && customKey.trim() !== "") {
+    return new GoogleGenerativeAI(customKey);
+  }
+  return genAI;
+}
+
 // ─── Diretórios ───────────────────────────────────────────────────────────────
 ["uploads", "output", "output/specs", "public/extracted"].forEach((d) => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -292,7 +320,7 @@ async function authMiddleware(req, res, next) {
 
 
 // ─── Dispatcher de Modelos ──────────────────────────────────────────────────
-async function callAI(prompt, config, imageBase64 = null) {
+async function callAI(req, prompt, config, imageBase64 = null) {
   const provider = config?.provider || "deepseek";
   // O fallback abaixo é para os nomes de modelo de cada provedor
   let defaultModelStr = "deepseek-chat";
@@ -301,7 +329,8 @@ async function callAI(prompt, config, imageBase64 = null) {
   const modelStr = config?.model || defaultModelStr;
   
   if (provider === "deepseek") {
-    const completion = await deepseek.chat.completions.create({
+    const client = getDeepseekClient(req);
+    const completion = await client.chat.completions.create({
       model: modelStr,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
@@ -311,6 +340,7 @@ async function callAI(prompt, config, imageBase64 = null) {
   }
   
   if (provider === "openai") {
+    const client = getOpenaiClient(req);
     const messages = [{ role: "user", content: prompt }];
     if (imageBase64) {
       messages[0] = {
@@ -321,7 +351,7 @@ async function callAI(prompt, config, imageBase64 = null) {
         ]
       };
     }
-    const completion = await openai.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: modelStr,
       messages: messages,
       temperature: 0.7
@@ -330,7 +360,8 @@ async function callAI(prompt, config, imageBase64 = null) {
   }
   
   if (provider === "google") {
-    const model = genAI.getGenerativeModel({ model: modelStr });
+    const client = getGoogleGenAI(req);
+    const model = client.getGenerativeModel({ model: modelStr });
     let result;
     if (imageBase64) {
       result = await model.generateContent([
@@ -438,7 +469,7 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
   "instagram_hashtags": ["INCLUIR DE 5 A 8 HASHTAGS VIRAIS DO NICHO. Se o anime for pouco conhecido, priorize hashtags de alto alcance do nicho como #manhwa, #anime, #otaku, #animeresumo, #animerecap, #resumodeanime, #geek, e nunca use hashtags do canal como #kumarecaps."]
 }`;
 
-    const content = await callAI(prompt, req.body.modelConfig);
+    const content = await callAI(req, prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -541,7 +572,7 @@ Retorne SOMENTE JSON válido:
   "resumo_para_thumbnail": "2-3 linhas do arco emocional do episódio"
 }`;
 
-    const content = await callAI(prompt, req.body.modelConfig);
+    const content = await callAI(req, prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -681,7 +712,7 @@ Retorne SOMENTE JSON válido:
   "recomendacao": "Excelente frame — expressão de triunfo bem definida"
 }`;
 
-    const content = await callAI(prompt, req.body.modelConfig, imageData);
+    const content = await callAI(req, prompt, req.body.modelConfig, imageData);
 
     const analise = JSON.parse(limparJson(content));
     res.json({ success: true, frame_path, analise });
@@ -761,7 +792,7 @@ Retorne SOMENTE JSON válido com esta estrutura:
   "metadata": {"anime": "${identificacao?.title || ""}", "template": "${template}", "gerado_em": "${new Date().toISOString()}"}
 }`;
 
-    const content = await callAI(prompt, req.body.modelConfig);
+    const content = await callAI(req, prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -840,7 +871,7 @@ Retorne SOMENTE JSON válido com esta estrutura:
   "metadata": {"anime": "${identificacao?.title || ""}", "template": "${template}", "gerado_em": "${new Date().toISOString()}"}
 }`;
 
-    const content = await callAI(prompt, req.body.modelConfig);
+    const content = await callAI(req, prompt, req.body.modelConfig);
     if (!content.trim())
       throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
 
@@ -937,7 +968,7 @@ Instruções:
         let response;
         if (modelName === "gpt-image-2" && imagesForOpenAI.length > 0) {
           console.log(`   -> Chamando openai.images.edit com gpt-image-2 e ${imagesForOpenAI.length} referências...`);
-          response = await openai.images.edit({
+          response = await getOpenaiClient(req).images.edit({
             model: modelName,
             image: imagesForOpenAI.length === 1 ? imagesForOpenAI[0] : imagesForOpenAI,
             prompt: dallePrompt,
@@ -959,7 +990,7 @@ Instruções:
               reqOpts.quality = "hd";
             }
           }
-          response = await openai.images.generate(reqOpts);
+          response = await getOpenaiClient(req).images.generate(reqOpts);
         }
         
         let buffer;
@@ -982,7 +1013,7 @@ Instruções:
     } else {
       // Flow padrão com fallback
       const imgModelStr = imgConfig.model || "gemini-3-pro-image-preview";
-      const imgModel = genAI.getGenerativeModel({ model: imgModelStr });
+      const imgModel = getGoogleGenAI(req).getGenerativeModel({ model: imgModelStr });
 
       const ensureOutputDir = () => {
         if (!fs.existsSync("output")) fs.mkdirSync("output", { recursive: true });
@@ -1010,7 +1041,7 @@ Instruções:
         let response;
         if (imagesForOpenAI.length > 0) {
           console.log(`   -> [Fallback] Chamando openai.images.edit com gpt-image-2 e ${imagesForOpenAI.length} referências...`);
-          response = await openai.images.edit({
+          response = await getOpenaiClient(req).images.edit({
             model: "gpt-image-2",
             image: imagesForOpenAI.length === 1 ? imagesForOpenAI[0] : imagesForOpenAI,
             prompt: fallbackPrompt,
@@ -1019,7 +1050,7 @@ Instruções:
           });
         } else {
           console.log(`   -> [Fallback] Chamando openai.images.generate com gpt-image-2...`);
-          response = await openai.images.generate({
+          response = await getOpenaiClient(req).images.generate({
             model: "gpt-image-2",
             prompt: fallbackPrompt,
             n: 1,

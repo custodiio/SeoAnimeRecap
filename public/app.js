@@ -19,6 +19,11 @@ const State = {
     vision: { provider: 'google', model: 'gemini-3.1-pro-preview' },
     spec: { provider: 'deepseek', model: 'deepseek-chat' },
     image: { provider: 'google', model: 'gemini-3-pro-image-preview' }
+  },
+  apiKeys: JSON.parse(localStorage.getItem('ai_api_keys')) || {
+    google: '',
+    deepseek: '',
+    openai: ''
   }
 };
 
@@ -45,6 +50,11 @@ async function apiFetch(endpoint, options = {}) {
   if (!options.headers) options.headers = {};
   if (State.token) {
     options.headers['Authorization'] = `Bearer ${State.token}`;
+  }
+  if (State.apiKeys) {
+    if (State.apiKeys.google) options.headers['X-Google-Key'] = State.apiKeys.google;
+    if (State.apiKeys.deepseek) options.headers['X-Deepseek-Key'] = State.apiKeys.deepseek;
+    if (State.apiKeys.openai) options.headers['X-Openai-Key'] = State.apiKeys.openai;
   }
   
   const response = await fetch(`${API}${endpoint}`, options);
@@ -365,6 +375,12 @@ function setupSettings() {
       window.updateModels(k);
       document.getElementById(`selMod_${k}`).value = State.models[k].model;
     });
+
+    // Preencher chaves alternativas
+    document.getElementById('cfg_google_key').value = State.apiKeys?.google || '';
+    document.getElementById('cfg_deepseek_key').value = State.apiKeys?.deepseek || '';
+    document.getElementById('cfg_openai_key').value = State.apiKeys?.openai || '';
+
     modal.classList.remove('hidden');
   });
   
@@ -378,6 +394,15 @@ function setupSettings() {
       image: { provider: document.getElementById('selProv_image').value, model: document.getElementById('selMod_image').value }
     };
     localStorage.setItem('ai_models', JSON.stringify(State.models));
+
+    // Salvar chaves alternativas
+    State.apiKeys = {
+      google: document.getElementById('cfg_google_key').value.trim(),
+      deepseek: document.getElementById('cfg_deepseek_key').value.trim(),
+      openai: document.getElementById('cfg_openai_key').value.trim()
+    };
+    localStorage.setItem('ai_api_keys', JSON.stringify(State.apiKeys));
+
     modal.classList.add('hidden');
     toast('Configurações salvas!', 'success');
   });
@@ -681,6 +706,7 @@ function setupThumb() {
   document.getElementById('btnDownloadSpec').addEventListener('click', downloadSpec);
   document.getElementById('btnRenderThumbnail').addEventListener('click', gerarThumbnailFinalIA);
   document.getElementById('btnRenderThumbnailTikTok')?.addEventListener('click', gerarThumbnailFinalIA);
+  document.getElementById('btnExtrairManual')?.addEventListener('click', extrairRequisicaoManual);
   document.getElementById('btnNovaIteracao').addEventListener('click', () => goToStep(3));
   document.getElementById('btnVoltarTemplates').addEventListener('click', () => goToStep(2));
   document.getElementById('btnFinalizarLimpar').addEventListener('click', finalizarELimpar);
@@ -978,8 +1004,26 @@ async function analisarFramesSelecionados() {
           modelConfig: State.models.vision
         })
       });
+
+      if (!r.ok) {
+        const errorText = await r.text();
+        let errMsg = errorText;
+        try {
+          const errJson = JSON.parse(errorText);
+          errMsg = errJson.error || errJson.message || errorText;
+        } catch (_) {}
+        throw new Error(`Erro na API (${r.status}): ${errMsg}`);
+      }
+
       const data = await r.json();
-      if (data.success) resultados[f.papel_id] = { frame: sel, analise: data.analise };
+      if (!data.success) {
+        throw new Error(data.error || 'Falha ao analisar o frame.');
+      }
+      resultados[f.papel_id] = { frame: sel, analise: data.analise };
+    }
+
+    if (Object.keys(resultados).length === 0) {
+      throw new Error("Nenhum frame pôde ser analisado.");
     }
 
     State.visionResultados = resultados;
@@ -1046,6 +1090,7 @@ async function gerarSpec() {
     updateStep4Buttons('youtube');
     goToStep(4);
     toast('Spec JSON gerado!', 'success');
+    setTimeout(extrairRequisicaoManual, 800);
   } catch (err) {
     toast(`Erro: ${err.message}`, 'error');
   } finally {
@@ -1084,6 +1129,7 @@ async function gerarSpecTikTok() {
     updateStep4Buttons('tiktok');
     goToStep(4);
     toast('Spec JSON TikTok gerado!', 'success');
+    setTimeout(extrairRequisicaoManual, 800);
   } catch (err) {
     toast(`Erro: ${err.message}`, 'error');
   } finally {
@@ -1180,6 +1226,78 @@ function updateStep4Buttons(mode) {
     if (btnRender169) btnRender169.classList.add('hidden');
     if (btnSpecTikTok) btnSpecTikTok.classList.add('hidden');
     if (btnRenderTikTok) btnRenderTikTok.classList.remove('hidden');
+  }
+}
+
+function extrairRequisicaoManual() {
+  if (!State.specFinal) {
+    toast('Nenhum spec final disponível para extrair.', 'error');
+    return;
+  }
+
+  // 1. Obter frames selecionados formatados
+  const framesSelecionados = Object.entries(State.framesSelecionados).map(([papelId, frame]) => ({
+    papel_id: papelId,
+    url: frame.url,
+    timestamp: frame.timestamp,
+    analise: State.visionResultados[papelId]?.analise || {}
+  }));
+
+  const isVertical = State.specFinal.canvas && State.specFinal.canvas.height > State.specFinal.canvas.width;
+  const proporcao = isVertical ? "TikTok 9:16 (vertical)" : "YouTube 16:9 (horizontal)";
+
+  // 2. Construir o Prompt Text rico em detalhes
+  const promptText = `Você é um diretor de arte especialista em anime e thumbnails virais.
+Gere a arte final da thumbnail baseada nos frames anexados e neste SPEC JSON de composição:
+
+${JSON.stringify(State.specFinal, null, 2)}
+
+**ANÁLISE PRÉVIA DOS FRAMES (USE ISSO PARA SABER O QUE CORRIGIR E DESTACAR):**
+${JSON.stringify(framesSelecionados.map(f => ({
+  papel: f.papel_id,
+  analise_vision: f.analise
+})), null, 2)}
+
+Instruções:
+- Utilize os frames fornecidos como base criativa para os personagens e elementos, mas seja muito inteligente na adaptação.
+- COMPOSIÇÃO LIMPA E SEM EXCESSO DE INFORMAÇÃO: Mantenha a thumbnail limpa, com poucos elementos e bom espaço de respiro (negative space). Não preencha excessivamente a tela, evite imagens poluídas ou "cheias" de elementos dispersos.
+- FIDELIDADE DOS PERSONAGENS E DO TRAÇO: Mantenha fielmente as características visuais dos personagens (cores do cabelo, olhos, roupas, feições) e o traço/estilo artístico original do anime correspondente.
+- Poses e Expressões: Você pode modificar a pose, gestos ou a expressão facial dos personagens para encaixar melhor na composição da capa, mas faça isso mantendo as características e traços originais deles.
+- Contorne falhas nos frames: se o frame não mostrar a imagem perfeita, adapte e use o elemento mais em foco.
+- Isole os elementos: não use recortes "quadradões". Faça um recorte inteligente, focando apenas no personagem.
+- Remova distrações: se houver personagens de fundo calmos ou indesejados que distoem da cena dramática, remova-os completamente.
+- Adicione detalhes: se o personagem do frame estiver com alguma parte cortada nas bordas, adicione pequenos detalhes para preencher o que falta.
+- Aplique o texto, cores, fontes e estilo exatos definidos no JSON.
+- A imagem deve ter qualidade ultra-dramática, estilo anime, na proporção ${proporcao}.
+- Sem marcas d'água.`;
+
+  // 3. Copiar para a área de transferência
+  navigator.clipboard.writeText(promptText).then(() => {
+    toast('Prompt para IA copiado para a área de transferência!', 'success');
+  }).catch(err => {
+    console.error('Erro ao copiar prompt:', err);
+    toast('Falha ao copiar o prompt para a área de transferência.', 'error');
+  });
+
+  // 4. Baixar os frames selecionados automaticamente
+  let downloadsIniciados = 0;
+  Object.entries(State.framesSelecionados).forEach(([papelId, frame]) => {
+    if (frame.url) {
+      downloadsIniciados++;
+      const fileUrl = new URL(frame.url, window.location.origin).href;
+      
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      // Nome amigável para download
+      a.download = `frame_${papelId}_${frame.timestamp}s.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  });
+
+  if (downloadsIniciados > 0) {
+    toast(`Baixando ${downloadsIniciados} frame(s) selecionado(s) automaticamente!`, 'success');
   }
 }
 

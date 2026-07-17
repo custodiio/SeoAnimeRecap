@@ -387,6 +387,10 @@
               <span class="btn-icon">✨</span>
               <span>Gerar Thumbnail com IA (16:9)</span>
             </button>
+            <button class="btn-outline btn-large" id="btnExtrairManual" style="border-color: #f5c518; color: #f5c518; background: transparent;">
+              <span class="btn-icon">📋</span>
+              <span>Copiar Prompt e Baixar Frames (Manual)</span>
+            </button>
             <button class="btn-primary btn-large" id="btnGerarSpecTikTok" style="background-color: #00f2fe; color: #000;">
               <span class="btn-icon">📱</span>
               <span>Gerar Spec JSON (TikTok 9:16)</span>
@@ -553,7 +557,26 @@
       <div class="settings-hint">Original: Google (gemini-3-pro-image-preview) com fallback para dall-e-3.</div>
     </div>
 
-    <button class="btn-primary" id="btnSaveSettings" style="width: 100%; justify-content: center; margin-top: 10px;">Salvar Configurações</button>
+    <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px;">
+      <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text); font-weight: 600;">🔑 Chaves de API Personalizadas</h3>
+      
+      <div class="settings-group">
+        <label class="settings-label">Chave Google (Gemini) Alternativa</label>
+        <input type="password" class="settings-input" id="cfg_google_key" placeholder="Deixe em branco para usar a do servidor" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); font-size: 12px; margin-top: 4px;">
+      </div>
+
+      <div class="settings-group" style="margin-top: 10px;">
+        <label class="settings-label">Chave DeepSeek Alternativa</label>
+        <input type="password" class="settings-input" id="cfg_deepseek_key" placeholder="Deixe em branco para usar a do servidor" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); font-size: 12px; margin-top: 4px;">
+      </div>
+
+      <div class="settings-group" style="margin-top: 10px;">
+        <label class="settings-label">Chave OpenAI Alternativa</label>
+        <input type="password" class="settings-input" id="cfg_openai_key" placeholder="Deixe em branco para usar a do servidor" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); font-size: 12px; margin-top: 4px;">
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnSaveSettings" style="width: 100%; justify-content: center; margin-top: 15px;">Salvar Configurações</button>
   </div>
 </div>
 
