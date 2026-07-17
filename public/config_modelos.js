@@ -26,6 +26,9 @@ const AVAILABLE_MODELS = {
       "gemini-3-flash-preview",
       "gemini-3.5-flash",
       "gemini-3.1-pro-preview"
+    ],
+    azure: [
+      "gpt-5-mini"
     ]
   },
 
@@ -40,6 +43,9 @@ const AVAILABLE_MODELS = {
     openai: [
       "gpt-4.1",
       "gpt-5.4",
+      "gpt-5-mini"
+    ],
+    azure: [
       "gpt-5-mini"
     ]
   },
@@ -60,6 +66,9 @@ const AVAILABLE_MODELS = {
       "gemini-3-flash-preview",
       "gemini-3.5-flash",
       "gemini-3.1-pro-preview"
+    ],
+    azure: [
+      "gpt-5-mini"
     ]
   },
 

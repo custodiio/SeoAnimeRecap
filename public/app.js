@@ -23,7 +23,8 @@ const State = {
   apiKeys: JSON.parse(localStorage.getItem('ai_api_keys')) || {
     google: '',
     deepseek: '',
-    openai: ''
+    openai: '',
+    azure: ''
   }
 };
 
@@ -55,6 +56,7 @@ async function apiFetch(endpoint, options = {}) {
     if (State.apiKeys.google) options.headers['X-Google-Key'] = State.apiKeys.google;
     if (State.apiKeys.deepseek) options.headers['X-Deepseek-Key'] = State.apiKeys.deepseek;
     if (State.apiKeys.openai) options.headers['X-Openai-Key'] = State.apiKeys.openai;
+    if (State.apiKeys.azure) options.headers['X-Azure-Key'] = State.apiKeys.azure;
   }
   
   const response = await fetch(`${API}${endpoint}`, options);
@@ -380,6 +382,7 @@ function setupSettings() {
     document.getElementById('cfg_google_key').value = State.apiKeys?.google || '';
     document.getElementById('cfg_deepseek_key').value = State.apiKeys?.deepseek || '';
     document.getElementById('cfg_openai_key').value = State.apiKeys?.openai || '';
+    document.getElementById('cfg_azure_key').value = State.apiKeys?.azure || '';
 
     modal.classList.remove('hidden');
   });
@@ -399,7 +402,8 @@ function setupSettings() {
     State.apiKeys = {
       google: document.getElementById('cfg_google_key').value.trim(),
       deepseek: document.getElementById('cfg_deepseek_key').value.trim(),
-      openai: document.getElementById('cfg_openai_key').value.trim()
+      openai: document.getElementById('cfg_openai_key').value.trim(),
+      azure: document.getElementById('cfg_azure_key').value.trim()
     };
     localStorage.setItem('ai_api_keys', JSON.stringify(State.apiKeys));
 

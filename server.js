@@ -106,6 +106,17 @@ function getGoogleGenAI(req) {
   return genAI;
 }
 
+function getAzureClient(req) {
+  const customKey = req && req.headers && req.headers["x-azure-key"];
+  const key = (customKey && customKey.trim() !== "") ? customKey : process.env.AZURE_API_KEY;
+  const endpoint = process.env.AZURE_ENDPOINT || "https://faceless-ia.services.ai.azure.com/openai/v1";
+  
+  return new OpenAI({
+    apiKey: key,
+    baseURL: endpoint
+  });
+}
+
 // ─── Diretórios ───────────────────────────────────────────────────────────────
 ["uploads", "output", "output/specs", "public/extracted"].forEach((d) => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -326,6 +337,7 @@ async function callAI(req, prompt, config, imageBase64 = null) {
   let defaultModelStr = "deepseek-chat";
   if (provider === "google") defaultModelStr = "gemini-3.1-pro-preview";
   if (provider === "openai") defaultModelStr = "gpt-4o";
+  if (provider === "azure") defaultModelStr = "gpt-5-mini";
   const modelStr = config?.model || defaultModelStr;
   
   if (provider === "deepseek") {
@@ -341,6 +353,26 @@ async function callAI(req, prompt, config, imageBase64 = null) {
   
   if (provider === "openai") {
     const client = getOpenaiClient(req);
+    const messages = [{ role: "user", content: prompt }];
+    if (imageBase64) {
+      messages[0] = {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+        ]
+      };
+    }
+    const completion = await client.chat.completions.create({
+      model: modelStr,
+      messages: messages,
+      temperature: 0.7
+    });
+    return completion.choices[0].message.content || "";
+  }
+  
+  if (provider === "azure") {
+    const client = getAzureClient(req);
     const messages = [{ role: "user", content: prompt }];
     if (imageBase64) {
       messages[0] = {

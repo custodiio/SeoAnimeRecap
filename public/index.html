@@ -514,6 +514,7 @@
           <option value="deepseek">DeepSeek</option>
           <option value="openai">OpenAI</option>
           <option value="google">Google Gemini</option>
+          <option value="azure">Azure OpenAI</option>
         </select>
         <select class="settings-select" id="selMod_text"></select>
       </div>
@@ -526,6 +527,7 @@
         <select class="settings-select" id="selProv_vision" onchange="updateModels('vision')">
           <option value="google">Google Gemini</option>
           <option value="openai">OpenAI</option>
+          <option value="azure">Azure OpenAI</option>
         </select>
         <select class="settings-select" id="selMod_vision"></select>
       </div>
@@ -539,6 +541,7 @@
           <option value="deepseek">DeepSeek</option>
           <option value="openai">OpenAI</option>
           <option value="google">Google Gemini</option>
+          <option value="azure">Azure OpenAI</option>
         </select>
         <select class="settings-select" id="selMod_spec"></select>
       </div>
@@ -573,6 +576,11 @@
       <div class="settings-group" style="margin-top: 10px;">
         <label class="settings-label">Chave OpenAI Alternativa</label>
         <input type="password" class="settings-input" id="cfg_openai_key" placeholder="Deixe em branco para usar a do servidor" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); font-size: 12px; margin-top: 4px;">
+      </div>
+
+      <div class="settings-group" style="margin-top: 10px;">
+        <label class="settings-label">Chave Azure OpenAI Alternativa</label>
+        <input type="password" class="settings-input" id="cfg_azure_key" placeholder="Deixe em branco para usar a do servidor" style="width: 100%; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); font-size: 12px; margin-top: 4px;">
       </div>
     </div>
 
