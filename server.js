@@ -385,8 +385,7 @@ async function callAI(req, prompt, config, imageBase64 = null) {
     }
     const completion = await client.chat.completions.create({
       model: modelStr,
-      messages: messages,
-      temperature: 0.7
+      messages: messages
     });
     return completion.choices[0].message.content || "";
   }
