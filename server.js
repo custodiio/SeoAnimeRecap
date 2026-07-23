@@ -457,7 +457,7 @@ app.post("/api/sync-drive", authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROTA 1 — Guia de Postagem
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post("/api/generate-guide", authMiddleware, async (req, res) => {
+const handleGuideGeneration = async (req, res) => {
   try {
     const { roteiro, identificacao } = req.body;
     if (!roteiro || !identificacao)
@@ -465,52 +465,70 @@ app.post("/api/generate-guide", authMiddleware, async (req, res) => {
         .status(400)
         .json({ error: "roteiro e identificacao são obrigatórios" });
 
-    const narrativa = roteiro
-      .filter((s) => s.tipo === "NARRACAO" && s.translated_text)
-      .map((s) => s.translated_text)
-      .join(" ");
+    const narrativa = Array.isArray(roteiro)
+      ? roteiro
+          .filter((s) => s.translated_text && s.translated_text.trim())
+          .map((s) => s.translated_text)
+          .join(" ")
+      : String(roteiro);
 
-    const prompt = `Você é o Kuma, dono do canal "Kuma Recap" no YouTube. Você cria roteiros e descrições para resumos de animes de forma carismática, engajante e focada em instigar o público a interagir nos comentários e deixar o like.
-Seu estilo é dinâmico, direto, e você sempre conversa com sua "alcateia" ou "família Kuma".
+    const titleStr = identificacao.title || "Anime";
+    const titleJpStr = identificacao.title_jp || "";
+    const protagonistStr = identificacao.protagonist || "Protagonista";
+    const charactersStr = Array.isArray(identificacao.characters) ? identificacao.characters.join(", ") : "";
+    const synopsisStr = identificacao.synopsis || "";
 
-ANIME: ${identificacao.title} (${identificacao.title_jp})
-PROTAGONISTA: ${identificacao.protagonist}
-PERSONAGENS: ${identificacao.characters.join(", ")}
-SINOPSE: ${identificacao.synopsis}
-NARRAÇÃO: ${narrativa}
+    const prompt = `Você é o Kuma, criador de conteúdo do canal "Kuma Recap". Você cria descrições, títulos e metadados de altíssimo impacto viral e SEO máximo para YouTube, TikTok e Instagram.
 
-Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte estrutura:
+DADOS DO CONTEÚDO:
+ANIME/MANHWA: ${titleStr} (${titleJpStr})
+PROTAGONISTA: ${protagonistStr}
+PERSONAGENS: ${charactersStr}
+SINOPSE: ${synopsisStr}
+NARRAÇÃO/LEGENDA DO VÍDEO: ${narrativa}
+
+REGRAS DE ANÁLISE E GERAÇÃO:
+1. SEQUÊNCIA DO VÍDEO: Analise o título, a sinopse e a narração para identificar ou confirmar a sequência exata do episódio (ex: EP 1, EP 2, Parte 1...). Defina o campo "sequencia".
+2. TÍTULO DO YOUTUBE ("titulo_principal"): Deve ter um hook explosivo + título da obra + a sequência identificada (ex: ELE FOI TRAÍDO E VOLTOU IMPLACÁVEL! | ${titleStr} EP 1).
+3. DESCRIÇÃO DO YOUTUBE ("descricao"):
+   - Hook inicial fortíssimo e provocativo instigando o espectador a COMENTAR a sua opinião.
+   - Chamada engajante para a Alcateia / Família Kuma curtir e se inscrever.
+   - Descrição curta e direta (NÃO inclua capítulos, marcações de tempo ou timestamps de forma alguma).
+4. HASHTAGS DO YOUTUBE ("hashtags_youtube"): EXATAMENTE 30 HASHTAGS com altíssimo índice de SEO do nicho de animes/manhwas/resumos (ex: #anime #animeresumo #animerecap #resumodeanime #otaku #geek #mangarecap #manhwa ...). ATENÇÃO: NUNCA inclua hashtags do próprio canal (ex: #kumarecaps ou #KumaRecap).
+5. TAGS DO YOUTUBE ("tags_youtube"): Palavras-chave separadas por vírgula para as tags do YouTube. SEO altíssimo. LIMITADO ESTRITAMENTE A NO MÁXIMO 500 CARACTERES NO TOTAL.
+6. GUIA PARA TIKTOK ("tiktok_guia"):
+   - Formato curto: Comece indicando a Sequência (ex: "EP 1...").
+   - Seguido por UMA ÚNICA FRASE com hook fortíssimo baseado na narração, instigando comentários.
+   - Finalizado por EXATAMENTE 5 HASHTAGS VIRAIS DO NICHO/TIKTOK (nem mais, nem menos! Ex: #anime #animeresumo #animerecap #otaku #webtoon).
+
+Retorne EXCLUSIVAMENTE um objeto JSON válido (sem tags markdown, sem explicações) com a estrutura:
 {
-  "titulo_principal": "título hook MÁXIMO — drama, curiosidade, spoiler velado. Se tiver o título do anime, inclua. Ex: ELE ESTAVA MORTO... MAS VOLTOU COM TUDO! | ${identificacao.title} EP X",
+  "sequencia": "EP 1",
+  "titulo_principal": "...",
   "titulos_alternativos": ["alt 1", "alt 2", "alt 3"],
-  "descricao": "NÃO resuma o vídeo. Crie algo instigante. Comece com uma pergunta provocativa sobre o episódio para gerar comentários. Formato Kuma Recap:\\n1. Hook/Pergunta bombástica envolvendo o episódio!\\n2. Call to Action forte para a Família Kuma se inscrever no canal e deixar o like.\\n3. Breve comentário pessoal (como o Kuma) sobre o momento épico.\\nATENÇÃO OBRIGATÓRIA: NÃO inclua timestamps, marcações de tempo ou capítulos de forma alguma nesta descrição. Ela deve ser limpa e sem capitulagem.",
-  "hashtags_youtube": ["INCLUIR EXATAMENTE 30 HASHTAGS RELEVANTES AO NICHO (EX: #anime, #animeresumo, #resumodeanime, #animerecap, #otaku, #geek, #mangarecap, #manhwa se aplicável, e termos específicos do anime). ATENÇÃO: NUNCA COLOQUE HASHTAGS DO SEU PRÓPRIO CANAL COMO #kumarecaps OU #KumaRecap, POIS NÃO TÊM HYPE E SÃO REDUNDANTES."],
-  "tags_youtube": "kuma recap, ${identificacao.title}, anime recap, resumo de anime, ...",
-  "capitulos": [{"tempo": "0:00", "titulo": "🔥 Intro"}, {"tempo": "0:45", "titulo": "..."}],
-  "cards_sugeridos": [{"tempo": "1:30", "texto": "Veja o episódio anterior!"}],
-  "momento_gancho_thumbnail": "descrição do momento mais explosivo com timestamp",
-  "call_to_action_video": "CTA estilo Kuma Recap para pedir no vídeo: like, inscrição e um comentário para a alcateia",
-  "call_to_action_descricao": "CTA para a descrição focada em inscrição",
+  "descricao": "...",
+  "hashtags_youtube": ["#1", "#2", ..., "#30"],
+  "tags_youtube": "tag1, tag2, tag3...",
+  "tiktok_guia": "EP 1... [Uma frase instigante sobre o vídeo]\\n\\n#anime #animeresumo #animerecap #otaku #webtoon",
+  "instagram_hashtags": ["#anime", "#animeresumo", "#animerecap", "#otaku", "#webtoon"],
   "categoria": "Entretenimento",
-  "audiencia_alvo": "fãs de anime 15-28 anos que acompanham resumos do canal Kuma Recap",
-  "melhor_horario_postagem": "Sexta 18h ou Sábado 14h (horário de Brasília)",
-  "analise_emocional": "3 linhas sobre os picos emocionais do episódio",
-  "score_viral": 87,
-  "tiktok_guia": "[Crie um título hook curto e chamativo instigando a comentar, ex: 'Você aceitaria esse pacto? 😳']\\n\\nTitulo: ${identificacao.title}\\n\\nSinopse: [Traduza a sinopse '${identificacao.synopsis.replace(/"/g, '\\"')}' para português de forma super envolvente]\\n\\n[INCLUA DE 5 A 8 HASHTAGS VIRAIS DO NICHO. Se o anime/manhwa não for muito conhecido, priorize hashtags com maior alcance do nicho como #manhwa, #webtoon, #anime, #animeresumo, #animerecap, #resumodeanime, #otaku ao invés de hashtags do canal. NÃO use hashtags como #kumarecaps ou similares.]",
-  "instagram_hashtags": ["INCLUIR DE 5 A 8 HASHTAGS VIRAIS DO NICHO. Se o anime for pouco conhecido, priorize hashtags de alto alcance do nicho como #manhwa, #anime, #otaku, #animeresumo, #animerecap, #resumodeanime, #geek, e nunca use hashtags do canal como #kumarecaps."]
+  "score_viral": 95
 }`;
 
-    const content = await callAI(req, prompt, req.body.modelConfig);
-    if (!content.trim())
-      throw new Error("A API retornou um conteúdo vazio mesmo após aguardar.");
+    const content = await callAI(req, prompt, req.body ? req.body.modelConfig : null);
+    if (!content || !content.trim())
+      throw new Error("A API retornou um conteúdo vazio.");
 
     const guia = JSON.parse(limparJson(content));
+
+    if (typeof guia.tags_youtube === 'string' && guia.tags_youtube.length > 500) {
+      guia.tags_youtube = guia.tags_youtube.slice(0, 497) + "...";
+    }
 
     const specFile = `output/guia_postagem_${Date.now()}.json`;
     if (!fs.existsSync("output")) fs.mkdirSync("output", { recursive: true });
     fs.writeFileSync(specFile, JSON.stringify(guia, null, 2));
 
-    // Upload pro Drive assíncrono para o kaggle/pipeline/final
     driveManager.uploadFileToPath(specFile, 'kaggle/pipeline/final', 'guia_postagem.json', 'application/json')
       .catch(e => console.error("Erro no upload do guia pro Drive:", e));
 
@@ -519,7 +537,10 @@ Retorne SOMENTE JSON válido, sem markdown, sem explicações, com a seguinte es
     console.error("❌ generate-guide:", err.message);
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.post("/api/generate-guide", authMiddleware, handleGuideGeneration);
+app.post("/api/auto-guide", handleGuideGeneration);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROTA 2 — Análise do Roteiro + Templates
